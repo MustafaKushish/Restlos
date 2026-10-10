@@ -1,11 +1,12 @@
 // Restlos-Koch-Server (Cloudflare Worker): verwahrt den Gemini-Schlüssel, damit Nutzer keinen eigenen brauchen.
-// Er nimmt nur ein Koch-Gespräch an ({ messages }) und baut die Anfrage selbst mit den Restlos-Koch-Anweisungen –
+// Er nimmt nur ein Koch-Gespräch ({ messages }) oder ein Bon-Foto ({ receipt }) an und baut die Anfrage selbst –
 // so lässt er sich nicht als allgemeine Gratis-KI missbrauchen. Die Antwort wird unverändert durchgestreamt.
 //
 // Einstellungen im Cloudflare-Dashboard (Worker → Settings → Variables and Secrets):
 //   GEMINI_API_KEY  (Secret)  Schlüssel von aistudio.google.com – ohne hinterlegte Zahlungsdaten bleibt es kostenlos
 //   ALLOWED_ORIGIN  (Text)    Adresse der App, z. B. https://mustafakushish.github.io (mehrere mit Komma)
 import { geminiRequest, GEMINI_MODELS } from '../js/chef.js';
+import { receiptRequest } from '../js/receiptai.js';
 
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 12000;
@@ -48,21 +49,29 @@ export default {
     if (!env.GEMINI_API_KEY) return json(500, 'Kein Schlüssel hinterlegt', headers);
 
     const raw = await request.text();
-    if (raw.length > 60000) return json(413, 'Zu lang', headers);
-    let messages;
-    try { ({ messages } = JSON.parse(raw)); } catch { return json(400, 'Kein JSON', headers); }
-    if (!validMessages(messages)) return json(400, 'Ungültiges Gespräch', headers);
-
-    const body = JSON.stringify(geminiRequest(messages));
+    if (raw.length > 4_000_000) return json(413, 'Zu groß', headers);
+    let messages, receipt;
+    try { ({ messages, receipt } = JSON.parse(raw)); } catch { return json(400, 'Kein JSON', headers); }
+    let body, action;
+    if (receipt) {
+      if (!/^image\/(jpeg|png|webp)$/.test(receipt.mimeType) || typeof receipt.data !== 'string') return json(400, 'Kein Bild', headers);
+      body = JSON.stringify(receiptRequest({ mimeType: receipt.mimeType, data: receipt.data }));
+      action = 'generateContent';
+    } else {
+      if (raw.length > 60000) return json(413, 'Zu lang', headers);
+      if (!validMessages(messages)) return json(400, 'Ungültiges Gespräch', headers);
+      body = JSON.stringify(geminiRequest(messages));
+      action = 'streamGenerateContent?alt=sse';
+    }
     let last;
     for (const model of GEMINI_MODELS) {
-      last = await fetch(`${GEMINI_URL}/${model}:streamGenerateContent?alt=sse`, {
+      last = await fetch(`${GEMINI_URL}/${model}:${action}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
         body,
       });
       if (last.ok) {
-        return new Response(last.body, { headers: { ...headers, 'content-type': 'text/event-stream', 'cache-control': 'no-store' } });
+        return new Response(last.body, { headers: { ...headers, 'content-type': receipt ? 'application/json' : 'text/event-stream', 'cache-control': 'no-store' } });
       }
       if (last.status !== 404 && last.status !== 429) break;
     }

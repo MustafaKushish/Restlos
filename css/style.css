@@ -287,6 +287,42 @@ dialog::backdrop { background: rgb(0 0 0 / 40%); }
 
 @media (min-width: 700px) {
   dialog#sheet { margin: auto; border-radius: 22px; }
+  .app { max-width: 760px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+  .grid .card { margin: 0; }
+  .stats { grid-template-columns: repeat(4, 1fr); }
+}
+.small-empty { padding: 8px 8px 0; }
+.small-empty .big { font-size: 44px; }
+
+/* Computer: Seitenleiste statt unterer Leiste, Inhalt nutzt die Breite */
+@media (min-width: 960px) {
+  :root { --side: 232px; }
+  body { padding-left: var(--side); }
+  .app { max-width: 1060px; padding: 0 40px 48px; }
+  .top { padding-top: 18px; }
+  .hero h1 { font-size: 34px; }
+  .tabs {
+    top: 0; right: auto; width: var(--side);
+    flex-direction: column; justify-content: flex-start; gap: 4px;
+    padding: 76px 14px 20px; border-top: 0; border-right: 1px solid var(--line); background: var(--card);
+  }
+  .tabs a {
+    flex: none; max-width: none; height: 48px; padding: 0 14px; border-radius: 12px;
+    flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 15px;
+  }
+  .tabs a:hover { background: var(--bg); }
+  .tabs a.on { background: var(--accent-soft); }
+  .tabs a[data-count]:not([data-count=""])::after { position: static; margin-left: auto; }
+  #toast { bottom: 24px; left: calc(50% + var(--side) / 2); }
+  .groups { columns: 2; column-gap: 24px; }
+  .grp { break-inside: avoid; display: flow-root; }
+  .grp .group { margin-top: 0; padding-top: 16px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .quick-btn { flex-direction: row; justify-content: center; gap: 10px; padding: 16px; font-size: 16px; }
+  .quick-btn span { font-size: 24px; }
+  /* Text-Seiten lesbar schmal halten */
+  #view[data-route="koch"], #view[data-route="einkauf"], #view[data-route="teilen"], #view[data-route="bilanz"] { max-width: 780px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

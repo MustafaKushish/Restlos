@@ -69,7 +69,7 @@ function renderVorrat() {
   const list = groups.map(([title, test]) => {
     const g = shown.filter((i) => test(daysLeft(i)));
     if (!g.length) return '';
-    return `<h3 class="group">${title}</h3><ul class="list">${g.map(row).join('')}</ul>`;
+    return `<section class="grp"><h3 class="group">${title}</h3><ul class="list">${g.map(row).join('')}</ul></section>`;
   }).join('');
 
   view.innerHTML = `
@@ -94,7 +94,7 @@ function renderVorrat() {
     <div class="chips" role="tablist">
       ${['alle', 'kuehl', 'vorrat', 'tk'].map((p) => `<button class="chip ${placeFilter === p ? 'on' : ''}" data-action="place" data-place="${p}">${p === 'alle' ? 'Alle' : PLACES[p]} <small>${counts[p] || 0}</small></button>`).join('')}
     </div>
-    ${list || '<p class="muted center">Hier liegt gerade nichts.</p>'}` : `
+    ${list ? `<div class="groups">${list}</div>` : '<p class="muted center">Hier liegt gerade nichts.</p>'}` : `
     <section class="empty">
       <div class="big">🧺</div>
       <p><b>Kein Eintippen von Ablaufdaten.</b> Fotografiere einfach deinen Kassenbon – Restlos erkennt die Lebensmittel und schätzt, wie lange sie halten.</p>
@@ -222,6 +222,19 @@ function scanSheet() {
 async function handlePhoto(file) {
   openSheet(`<h2 id="sheet-title">Bon wird gelesen …</h2>
     <div class="progress"><div id="bar"></div></div><p id="progress-text" class="muted center">Einen Moment …</p>`);
+  // Mit KI (Gemini bzw. Claude in der Vorschau) – viel genauer. Klappt das nicht, liest das Gerät selbst.
+  const conn = aiConn();
+  if (chefProvider(conn.apiKey, conn.server, conn.sample) && !conn.apiKey?.startsWith('sk-ant-')) {
+    const bar = $('#bar');
+    if (bar) { bar.style.width = '35%'; bar.classList.add('busy'); }
+    $('#progress-text') && ($('#progress-text').textContent = 'KI liest den Bon …');
+    try {
+      const { readReceiptAI } = await import('./receiptai.js');
+      return reviewReceipt(null, await readReceiptAI(file, conn));
+    } catch {
+      toast('KI gerade nicht erreichbar – das Gerät liest den Bon selbst');
+    }
+  }
   try {
     const { recognize } = await import('./ocr.js');
     const text = await recognize(file, (p, msg) => {
@@ -237,11 +250,17 @@ async function handlePhoto(file) {
 }
 
 let pending = [];
-function reviewReceipt(text) {
-  const { store: shop, date, items } = parseReceipt(text);
+function reviewReceipt(text, fromAI) {
+  const { store: shop, date, items } = fromAI || parseReceipt(text);
+  if (fromAI) text = items.map((x) => x.raw).join('\n');
   const today = iso();
   const bought = date && date <= today && date >= addDays(today, -30) ? date : today;
-  pending = items.map((x) => ({ ...makeItem({ name: x.name, pid: x.pid, qty: x.qty, price: x.price, bought, source: 'bon', raw: x.raw }), checked: x.known }));
+  pending = items.map((x) => {
+    // Kennt Restlos das Produkt nicht, nehmen wir die Haltbarkeit, die die KI geschätzt hat.
+    const pid = x.pid ?? matchProduct(x.name)?.id;
+    const expires = !pid && x.days ? addDays(bought, x.days) : undefined;
+    return { ...makeItem({ name: x.name, pid, qty: x.qty, price: x.price, bought, expires, source: 'bon', raw: x.raw }), checked: fromAI ? true : x.known };
+  });
   if (!pending.length) {
     return openSheet(`<h2 id="sheet-title">Keine Lebensmittel gefunden</h2>
       <p class="muted">Der Bon war schwer zu lesen. Tipp: flach hinlegen, ohne Schatten, näher ran. Oder einfach eintippen.</p>
@@ -275,14 +294,14 @@ function renderRezepte() {
     <a class="card chef-entry" href="#/koch"><span class="emoji xl">👨‍🍳</span>
       <span><b>KI-Koch fragen</b><small>Schreib, was du hast – ein Profikoch macht daraus ein Rezept, das auch Anfängern gelingt.</small></span></a>
     <div class="chips"><button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 Nur vegetarisch</button></div>
-    ${lastSuggestions.length ? lastSuggestions.map((r, n) => `
+    ${lastSuggestions.length ? `<div class="grid">${lastSuggestions.map((r, n) => `
       <button class="card recipe" data-action="recipe" data-n="${n}">
         <span class="emoji xl">${r.emoji}</span>
         <span class="recipe-text"><b>${esc(r.title)}</b>
           <small>${r.time} Min. · nutzt ${r.uses.length} ${r.uses.length === 1 ? 'Sache' : 'Sachen'} aus dem Vorrat</small>
           ${r.urgent.length ? `<small class="save">🌱 rettet ${r.urgent.map((i) => esc(i.name)).join(', ')}</small>` : ''}
           ${r.missing.length ? `<small class="miss">fehlt: ${r.missing.map(esc).join(', ')}</small>` : ''}</span>
-      </button>`).join('') : `
+      </button>`).join('')}</div>` : `
       <section class="empty"><div class="big">🍳</div><p>Sobald etwas im Vorrat ist, schlägt Restlos hier Gerichte vor – zuerst die, die Ablaufendes aufbrauchen.</p>
       <button class="btn primary" data-action="scan">📷 Kassenbon scannen</button></section>`}
   `;
@@ -309,11 +328,14 @@ function recipeSheet(n) {
 const chat = { messages: [], live: '', busy: false, error: '', draft: '', pantry: true, persons: 2, minutes: 30, ctrl: null };
 // In der Vorschau auf claude.ai kocht Claude über das Konto des Betrachters (dort ist das Netz gesperrt).
 let previewChef = null;
+// Eigener Schlüssel geht vor, sonst der Schlüssel der App (config.js), sonst Koch-Server bzw. Vorschau.
+const aiConn = () => ({ apiKey: store.state.settings.aiKey || CONFIG.appKey, server: CONFIG.chefServer, sample: previewChef });
 globalThis.claude?.use?.('sample').then((sm) => { previewChef = sm; if (sm && current() === 'koch') render(); }).catch(() => {});
 const lastAnswer = () => [...chat.messages].reverse().find((m) => m.role === 'assistant')?.content || '';
 
 function renderKoch() {
-  const ready = !!chefProvider(store.state.settings.aiKey, CONFIG.chefServer, previewChef);
+  const { apiKey, server, sample } = aiConn();
+  const ready = !!chefProvider(apiKey, server, sample);
   view.innerHTML = `
     <section class="hero"><h1>👨‍🍳 Dein KI-Koch</h1><p>Schreib, was du hast – der Koch macht das Beste daraus. Auch wenn du noch nie gekocht hast.</p></section>
     ${previewChef ? '<p class="hint">Vorschau: Hier kocht Claude über dein Claude-Konto. In der echten App kocht Gemini mit deinem Schlüssel.</p>' : ''}
@@ -375,8 +397,8 @@ function chefConversation() {
 }
 
 async function chefSend(content, show) {
-  const apiKey = store.state.settings.aiKey;
-  if (!chefProvider(apiKey, CONFIG.chefServer, previewChef)) return toast('Erst den Schlüssel eintragen');
+  const conn = aiConn();
+  if (!chefProvider(conn.apiKey, conn.server, conn.sample)) return toast('Erst den Schlüssel eintragen');
   if (chat.busy) return;
   if (content) chat.messages.push({ role: 'user', content, show });
   Object.assign(chat, { busy: true, live: '', error: '', ctrl: new AbortController() });
@@ -384,9 +406,7 @@ async function chefSend(content, show) {
   $('#chef-live')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   try {
     const { text, stop } = await askChef({
-      apiKey,
-      server: CONFIG.chefServer,
-      sample: previewChef,
+      ...conn,
       messages: chat.messages.map(({ role, content: c }) => ({ role, content: c })),
       signal: chat.ctrl.signal,
       onText: (t) => { chat.live = t; const el = $('#chef-live'); if (el) el.innerHTML = renderMarkdown(t); },
@@ -426,6 +446,7 @@ function chefCookedSheet() {
 }
 
 // ---------- Einkauf ----------
+const SHOP_BASICS = ['milch', 'eier', 'brot', 'butter', 'kaese', 'joghurt', 'bananen', 'aepfel', 'tomaten', 'gurke', 'nudeln', 'reis', 'kartoffeln', 'zwiebeln'];
 function renderEinkauf() {
   const list = store.state.shopping;
   const items = store.items();
@@ -434,6 +455,11 @@ function renderEinkauf() {
     return items.filter((i) => (p ? i.pid === p.id : i.name.toLowerCase() === name.toLowerCase()));
   };
   const done = list.filter((s) => s.done).length;
+  // Vorschläge: was zuletzt aufgebraucht wurde und gerade fehlt, dazu Grundnahrungsmittel.
+  const onList = (n) => list.some((s) => !s.done && s.name.toLowerCase() === n.toLowerCase());
+  const restock = [...new Set([...store.state.log].reverse().filter((e) => e.action === 'used').map((e) => e.name))]
+    .filter((n) => !inStock(n).length && !onList(n)).slice(0, 8);
+  const basics = SHOP_BASICS.map((id) => byId[id]).filter((p) => p && !onList(p.name) && !restock.includes(p.name) && !inStock(p.name).length).slice(0, 10);
   view.innerHTML = `
     <section class="hero"><h1>Einkaufsliste</h1><p>Restlos warnt, wenn du etwas schon zu Hause hast.</p></section>
     <form class="input-row" data-form="shop">
@@ -451,7 +477,11 @@ function renderEinkauf() {
       </li>`;
     }).join('')}</ul>
     ${done ? `<button class="btn primary block" data-action="shop-to-pantry">${done} abgehakte Sachen in den Vorrat</button>` : ''}`
-    : '<p class="muted center">Noch nichts auf der Liste.</p>'}
+    : `<section class="empty small-empty"><div class="big">🛒</div><p>Noch nichts auf der Liste. Schreib oben, was du brauchst – oder tipp unten an.</p></section>`}
+    ${restock.length ? `<h3 class="group">Nachkaufen? Zuletzt aufgebraucht</h3>
+      <div class="chips wrap">${restock.map((n) => `<button class="chip" data-action="shop-quick" data-name="${esc(n)}">＋ ${esc(n)}</button>`).join('')}</div>` : ''}
+    <h3 class="group">Oft gebraucht</h3>
+    <div class="chips wrap">${basics.map((p) => `<button class="chip" data-action="shop-quick" data-name="${esc(p.name)}">${p.emoji} ${esc(p.name)}</button>`).join('')}</div>
   `;
   const input = $('#shop-text');
   input.addEventListener('input', () => {
@@ -531,7 +561,7 @@ function renderBilanz() {
     <div class="card settings">
       ${store.state.settings.aiKey
     ? `<button class="set" data-action="chef-key-remove"><span>🔑</span><span><b>API-Schlüssel entfernen</b><small>Gespeichert: …${esc(store.state.settings.aiKey.slice(-4))} · nur auf diesem Gerät, nicht in der Sicherung</small></span></button>`
-    : CONFIG.chefServer ? '<a class="set" href="#/koch"><span>👨‍🍳</span><span><b>KI-Koch ist an</b><small>Kostenlos über den Restlos-Koch-Server</small></span></a>'
+    : CONFIG.chefServer || CONFIG.appKey ? '<a class="set" href="#/koch"><span>👨‍🍳</span><span><b>KI-Koch ist an</b><small>Kostenlos, ohne Einrichtung – Koch und Bon-Erkennung</small></span></a>'
       : '<a class="set" href="#/koch"><span>🔑</span><span><b>KI-Koch einrichten</b><small>Kostenlosen Gemini-Schlüssel eintragen</small></span></a>'}
     </div>
     <h3 class="group">Daten</h3>
@@ -669,6 +699,7 @@ const actions = {
   // Einkauf
   'shop-toggle': (el) => store.toggleShopping(el.dataset.id),
   'shop-remove': (el) => store.removeShopping(el.dataset.id),
+  'shop-quick': (el) => { store.addShopping(el.dataset.name); toast(`${el.dataset.name} auf der Liste`); },
   'shop-to-pantry': () => { const added = store.shoppingToPantry(); toast(`${added.length} Sachen in den Vorrat übernommen`); },
   // Teilen
   share: async () => {
@@ -793,6 +824,7 @@ function render() {
   // Eingaben nicht beim Tippen wegrendern (z. B. Klingelschild)
   const active = document.activeElement;
   const keep = active?.dataset?.setting ? active.dataset.setting : null;
+  view.dataset.route = route;
   ROUTES[route]();
   if (keep) view.querySelector(`[data-setting="${keep}"]`)?.focus();
   const tab = route === 'koch' ? 'rezepte' : route;

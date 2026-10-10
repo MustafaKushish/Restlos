@@ -4,7 +4,7 @@
 
 | Problem | Lösung in Restlos |
 |---|---|
-| Eintippen nervt | **Kassenbon fotografieren.** Restlos erkennt die Lebensmittel, Mengen und Preise. Pfand, Rabatte und Drogerieartikel sortiert es aus. |
+| Eintippen nervt | **Kassenbon fotografieren.** Die KI (Gemini) liest den Bon: Lebensmittel, Mengen, Preise und geschätzte Haltbarkeit. Pfand, Rabatte und Drogerieartikel sortiert sie aus. Ohne KI liest das Gerät den Bon selbst (Texterkennung). |
 | Niemand tippt Ablaufdaten ein | **Haltbarkeit wird geschätzt** (über 80 Produkte, ab Kaufdatum). „Angebrochen“ und „Einfrieren“ passen sie an. |
 | Man vergisst, was da ist | **Ampel-Übersicht** nach Dringlichkeit, Hinweis beim Öffnen, Erinnerungen im Handy-Kalender (.ics) |
 | Was koche ich mit den Resten? | **Reste-Rezepte**, die zuerst das Ablaufende verbrauchen. Benannt nach deinen Resten („Frittata mit Zucchini & Paprika“). |
@@ -20,7 +20,7 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
 - **Online:** Jeder Push auf `main` stellt die App über GitHub Pages unter `https://<name>.github.io/Restlos/` bereit (Workflow „Web-App (GitHub Pages)“). Auf dem Handy dann „Zum Home-Bildschirm“.
 - **Lokal:** `npm start`, dann http://localhost:8080 öffnen. In der App „Beispiel-Vorrat laden“ antippen.
 - **Tests:** `npm test` (Bon-Erkennung, Haltbarkeit, Rezepte, Bilanz, Speicher, KI-Koch)
-- **KI-Koch:** kostenlos. Für alle Nutzer ohne Einrichtung über den Restlos-Koch-Server (`worker/`, Anleitung in [worker/README.md](worker/README.md)). Solange der Server nicht läuft: unter „Rezepte → KI-Koch fragen“ einen kostenlosen Gemini-Schlüssel von [aistudio.google.com](https://aistudio.google.com) eintragen.
+- **KI-Koch und KI-Bonerkennung ohne Einrichtung für Nutzer:** kostenlosen Gemini-Schlüssel (aistudio.google.com) auf GitHub unter *Settings → Secrets and variables → Actions → New repository secret* als `GEMINI_API_KEY` speichern. Beim Veröffentlichen setzt der Workflow ihn in die App ein. Wichtig: Der Schlüssel ist dann im Code der Webseite sichtbar. Deshalb in der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) beim Schlüssel *Website-Einschränkung* auf `https://mustafakushish.github.io/*` und *API-Einschränkung* auf „Generative Language API“ setzen und **keine Zahlungsdaten** hinterlegen – dann kann er höchstens das kostenlose Tageslimit verbrauchen, nie Geld kosten. Alternative ohne sichtbaren Schlüssel: der Koch-Server in `worker/` ([Anleitung](worker/README.md)). Nutzer können auch selbst einen Schlüssel eintragen.
 - **Unterstützen:** PayPal-Link in `js/config.js` eintragen, dann erscheinen die Knöpfe „Restlos unterstützen“ (Bilanz und nach jedem Rezept).
 
 ## Technik
@@ -35,6 +35,7 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
   - `js/recipes.js` – 36 Rezepte und die Auswahl nach Dringlichkeit
   - `js/share.js` – Teilen-Text, Aushang, Kalender-Erinnerungen
   - `js/store.js` – Speicher mit Rückgängig
+  - `js/receiptai.js` – Kassenbon per KI lesen
   - `js/chef.js` – KI-Koch: Anweisungen an den Koch, Anfrage (Gemini/Claude), sichere Darstellung der Antwort
   - `js/config.js` – Adresse des Koch-Servers und PayPal-Link
   - `worker/` – Restlos-Koch-Server für Cloudflare (verwahrt den Gemini-Schlüssel)

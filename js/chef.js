@@ -99,7 +99,7 @@ export function askChef({ apiKey, server, sample, ...rest }) {
 // Kostenlose Modelle in der Reihenfolge, in der wir sie probieren. Ist bei einem das Tageslimit
 // erreicht (429) oder gibt es das Modell nicht mehr (404), kommt das nächste dran.
 export const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export function geminiRequest(messages) {
   return {

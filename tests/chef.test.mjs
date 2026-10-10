@@ -225,3 +225,51 @@ test('Vorschau auf claude.ai: Claude kocht mit den Koch-Anweisungen als erster N
   const denied = async () => { throw { code: 'not_granted', message: 'x' }; };
   await assert.rejects(askChef({ sample: denied, messages: [{ role: 'user', content: 'x' }] }), /Erlaubnis/);
 });
+
+// ---------- Kassenbon mit KI ----------
+import { cleanReceipt, receiptRequest, geminiJSON } from '../js/receiptai.js';
+
+test('KI-Bon: Antwort wird geprüft, Stückpreis berechnet, Unsinn verworfen', () => {
+  const r = cleanReceipt({ store: 'REWE', date: '2026-10-08', items: [
+    { name: 'H-Milch', qty: 2, price: 1.98, days: 90, raw: 'JA! H-MILCH 3,5%' },
+    { name: 'Bananen', qty: 0, price: '1,99', raw: 'BIO BANANE' },
+    { name: '', qty: 1, price: 1 },
+    { name: 'Wildreis-Mix', qty: 1, price: 2.49, days: 99999 },
+  ] });
+  assert.equal(r.store, 'REWE');
+  assert.equal(r.date, '2026-10-08');
+  assert.deepEqual(r.items.map((x) => [x.name, x.qty, x.price, x.days]), [['H-Milch', 2, 0.99, 90], ['Bananen', 1, 0, null], ['Wildreis-Mix', 1, 2.49, null]]);
+  assert.equal(cleanReceipt({ date: '8.10.', items: 'kaputt' }).date, null);
+});
+
+test('KI-Bon: Gemini bekommt Bild und JSON-Vorgabe, Modellwechsel bei Limit', async () => {
+  const req = receiptRequest({ mimeType: 'image/jpeg', data: 'AAAA' });
+  assert.equal(req.contents[0].parts[0].inlineData.data, 'AAAA');
+  assert.equal(req.generationConfig.responseMimeType, 'application/json');
+  const calls = [];
+  const fetch = async (url) => {
+    calls.push(url);
+    if (calls.length === 1) return new Response('{}', { status: 429 });
+    return Response.json({ candidates: [{ content: { parts: [{ text: '{"items":[{"name":"Gouda","qty":1,"price":1.79}]}' }] } }] });
+  };
+  const data = await geminiJSON({ mimeType: 'image/jpeg', data: 'AAAA' }, { apiKey: 'AIzaX', fetch });
+  assert.equal(data.items[0].name, 'Gouda');
+  assert.match(calls[1], /gemini-3\.1-flash-lite:generateContent$/);
+});
+
+test('Koch-Server liest auch Bons – nur Bilder', async () => {
+  const env = { GEMINI_API_KEY: 'AIzaServer', ALLOWED_ORIGIN: 'https://mustafakushish.github.io' };
+  const post = (body) => new Request('https://koch.example/', { method: 'POST', headers: { origin: 'https://mustafakushish.github.io' }, body: JSON.stringify(body) });
+  const realFetch = globalThis.fetch;
+  let up;
+  globalThis.fetch = async (url, init) => { up = { url, body: JSON.parse(init.body) }; return Response.json({ candidates: [] }); };
+  try {
+    assert.equal((await worker.fetch(post({ receipt: { mimeType: 'text/html', data: 'x' } }), env)).status, 400);
+    const res = await worker.fetch(post({ receipt: { mimeType: 'image/jpeg', data: 'AAAA' } }), env);
+    assert.equal(res.status, 200);
+    assert.match(up.url, /:generateContent$/);
+    assert.match(up.body.contents[0].parts[1].text, /Kassenbon/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
