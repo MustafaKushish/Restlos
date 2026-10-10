@@ -2,7 +2,7 @@
 import { iso, uid, makeItem, sortByExpiry } from './pantry.js';
 
 const KEY = 'restlos:v1';
-const EMPTY = () => ({ items: [], log: [], shopping: [], settings: { flat: '', veg: false, notified: '' } });
+const EMPTY = () => ({ items: [], log: [], shopping: [], settings: { flat: '', veg: false, notified: '', aiKey: '' } });
 
 export function createStore(storage = globalThis.localStorage) {
   let state = EMPTY();
@@ -75,11 +75,12 @@ export function createStore(storage = globalThis.localStorage) {
       state.settings[key] = value;
       save();
     },
-    exportJson: () => JSON.stringify(state, null, 1),
+    // Der API-Schlüssel für den KI-Koch gehört nicht in Sicherungsdateien.
+    exportJson: () => JSON.stringify({ ...state, settings: { ...state.settings, aiKey: undefined } }, null, 1),
     importJson(text) {
       const data = JSON.parse(text);
       if (!Array.isArray(data.items)) throw new Error('Keine Restlos-Sicherung');
-      state = { ...EMPTY(), ...data, settings: { ...EMPTY().settings, ...data.settings } };
+      state = { ...EMPTY(), ...data, settings: { ...EMPTY().settings, ...data.settings, aiKey: state.settings.aiKey } };
       save();
     },
     reset() { state = EMPTY(); save(); },

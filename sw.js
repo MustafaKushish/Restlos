@@ -1,8 +1,9 @@
 // Offline: Die App selbst liegt im Cache, die Daten sowieso auf dem Gerät.
-const CACHE = 'restlos-v1';
+const CACHE = 'restlos-v2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/store.js', 'js/products.js', 'js/pantry.js', 'js/receipt.js', 'js/recipes.js', 'js/share.js', 'js/ocr.js',
+  'js/chef.js', 'js/vendor/anthropic-sdk.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

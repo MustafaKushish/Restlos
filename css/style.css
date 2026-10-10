@@ -163,10 +163,30 @@ small { font-size: 0.82em; }
 .steps { padding-left: 22px; }
 .steps li { margin-bottom: 8px; }
 
+/* KI-Koch */
+.chef-entry { display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit; background: var(--accent-soft); border-color: transparent; }
+.chef-entry span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.chef-entry small { color: var(--muted); }
+.input-row.start { align-items: flex-start; }
+.input-row textarea { flex: 1; resize: vertical; }
+.bubble { margin: 4px 0 12px auto; max-width: 85%; width: fit-content; padding: 10px 14px; border-radius: 18px 18px 4px 18px; background: var(--accent); color: var(--on-accent); font-size: 15px; }
+.chef-answer h2 { font-size: 21px; margin: 4px 0 6px; }
+.chef-answer h3 { font-size: 16px; margin: 16px 0 6px; }
+.chef-answer p { margin: 6px 0; }
+.chef-answer ul, .chef-answer ol { padding-left: 22px; margin: 6px 0; }
+.chef-answer li { margin-bottom: 6px; }
+.chef-answer i { color: var(--muted); font-style: normal; }
+.thinking { color: var(--muted); margin: 4px 0; }
+.dots::after { content: ''; animation: dots 1.4s steps(4) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: ' .'; } 50% { content: ' . .'; } 75% { content: ' . . .'; } }
+.idea-chips { margin-top: 10px; }
+.center-link { display: block; margin: 6px auto 12px; }
+a.set { color: inherit; text-decoration: none; }
+
 /* Formulare */
 .input-row { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
 .input-row input { flex: 1; }
-input[type="text"], input[type="number"], input[type="date"], select, textarea {
+input[type="text"], input[type="password"], input[type="number"], input[type="date"], select, textarea {
   width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--card); font-size: 16px;
 }

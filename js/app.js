@@ -1,10 +1,11 @@
-// Restlos – Oberfläche. Ansichten: Vorrat, Rezepte, Einkauf, Teilen, Bilanz.
+// Restlos – Oberfläche. Ansichten: Vorrat, Rezepte (mit KI-Koch), Einkauf, Teilen, Bilanz.
 import { createStore } from './store.js';
 import { CATS, PLACES, PRODUCTS, byId, matchProduct, searchProducts } from './products.js';
 import { iso, addDays, daysLeft, status, stats, openItem, parseFreeText, makeItem } from './pantry.js';
 import { parseReceipt } from './receipt.js';
 import { suggest } from './recipes.js';
 import { shareItems, printPoster, calendarFile } from './share.js';
+import { askChef, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems } from './chef.js';
 
 const store = createStore();
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -75,7 +76,7 @@ function renderVorrat() {
     <section class="card alert">
       <div class="alert-head">⏰ Bald weg: ${urgent.slice(0, 4).map((i) => esc(i.name)).join(', ')}${urgent.length > 4 ? ' …' : ''}</div>
       <div class="row-btns">
-        <a class="btn primary" href="#/rezepte">Rezept dafür</a>
+        <a class="btn primary" href="#/koch">👨‍🍳 Koch fragen</a>
         <a class="btn" href="#/teilen">Verschenken</a>
       </div>
     </section>` : ''}
@@ -182,19 +183,17 @@ function updateAddPreview() {
   $('#add-suggest').innerHTML = hits.map((p) => `<button class="chip" data-action="complete" data-name="${p.name}">${p.emoji} ${p.name}</button>`).join('');
 }
 
-function listen() {
+function listen(input = $('#add-text'), onUpdate = updateAddPreview, mic = $('.mic')) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return toast('Spracheingabe kann dieser Browser nicht – nutze das Mikrofon der Tastatur.');
   const rec = new SR();
   rec.lang = 'de-DE';
   rec.interimResults = true;
-  const input = $('#add-text');
   const before = input.value ? `${input.value.replace(/,\s*$/, '')}, ` : '';
-  const mic = $('.mic');
   mic?.classList.add('on');
   rec.onresult = (e) => {
     input.value = before + [...e.results].map((r) => r[0].transcript).join(' ');
-    updateAddPreview();
+    onUpdate();
   };
   rec.onend = () => mic?.classList.remove('on');
   rec.onerror = (e) => { mic?.classList.remove('on'); if (e.error === 'not-allowed') toast('Bitte Mikrofon erlauben.'); };
@@ -268,6 +267,8 @@ function renderRezepte() {
   lastSuggestions = suggest(items.filter((i) => !i.offered), { vegOnly: veg, limit: 10 });
   view.innerHTML = `
     <section class="hero"><h1>Reste-Rezepte</h1><p>Sortiert nach dem, was zuerst weg muss.</p></section>
+    <a class="card chef-entry" href="#/koch"><span class="emoji xl">👨‍🍳</span>
+      <span><b>KI-Koch fragen</b><small>Schreib, was du hast – ein Profikoch macht daraus ein Rezept, das auch Anfängern gelingt.</small></span></a>
     <div class="chips"><button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 Nur vegetarisch</button></div>
     ${lastSuggestions.length ? lastSuggestions.map((r, n) => `
       <button class="card recipe" data-action="recipe" data-n="${n}">
@@ -295,6 +296,120 @@ function recipeSheet(n) {
     <h3>So geht's</h3>
     <ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
     <button class="btn primary block" data-action="cooked">Gekocht! Zutaten austragen</button>
+  `);
+}
+
+// ---------- KI-Koch ----------
+// Das Gespräch lebt nur im Speicher: messages geht an Claude, show ist die kurze Fassung für die Anzeige.
+const chat = { messages: [], live: '', busy: false, error: '', draft: '', pantry: true, persons: 2, minutes: 30, ctrl: null };
+const lastAnswer = () => [...chat.messages].reverse().find((m) => m.role === 'assistant')?.content || '';
+
+function renderKoch() {
+  const key = store.state.settings.aiKey;
+  view.innerHTML = `
+    <section class="hero"><h1>👨‍🍳 Dein KI-Koch</h1><p>Schreib, was du hast – der Koch macht das Beste daraus. Auch wenn du noch nie gekocht hast.</p></section>
+    ${key ? '' : `
+    <section class="card">
+      <b>Einmal einrichten: API-Schlüssel</b>
+      <p class="small muted">Der Koch ist Claude von Anthropic. Dafür braucht die App einen API-Schlüssel: auf <b>console.anthropic.com</b> anmelden → „API Keys“ → „Create Key“ und hier einfügen. Der Schlüssel bleibt nur auf diesem Gerät. Ein Rezept kostet etwa 5–10 Cent.</p>
+      <form class="input-row" data-form="ai-key"><input id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-…" aria-label="API-Schlüssel"><button class="btn primary">Speichern</button></form>
+    </section>`}
+    ${chat.messages.length ? chefConversation() : chefForm(key)}
+    <p class="muted small center">Lieber ohne KI? <a href="#/rezepte">Fertige Reste-Rezepte</a></p>
+  `;
+}
+
+function chefForm(key) {
+  const items = store.items().filter((i) => !i.offered);
+  const urgent = items.filter((i) => daysLeft(i) <= 3).length;
+  const veg = store.state.settings.veg;
+  const seg = (action, list, value, label) => list.map(([v, text]) => `<button class="chip ${value === v ? 'on' : ''}" data-action="${action}" data-v="${v}" aria-label="${label} ${text}" aria-pressed="${value === v}">${text}</button>`).join('');
+  return `
+    <section class="card">
+      <label class="field" for="chef-text">Was hast du da, worauf hast du Lust?</label>
+      <div class="input-row start">
+        <textarea id="chef-text" rows="3" placeholder="z. B. 2 Zucchini, halbe Packung Feta, Reis von gestern – gern was Warmes">${esc(chat.draft)}</textarea>
+        <button class="icon-btn mic" data-action="chef-listen" aria-label="Sprechen">🎤</button>
+      </div>
+      <div class="chips wrap">
+        ${items.length ? `<button class="chip ${chat.pantry ? 'on' : ''}" data-action="chef-pantry">📦 Vorrat nutzen <small>${items.length}${urgent ? `, ${urgent} bald weg` : ''}</small></button>` : ''}
+        <button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 Vegetarisch</button>
+      </div>
+      <div class="chips wrap">${seg('chef-persons', [[1, '1 Person'], [2, '2 Personen'], [4, '4 Personen']], chat.persons, 'Für')}</div>
+      <div class="chips wrap">${seg('chef-minutes', [[15, '15 Min.'], [30, '30 Min.'], [60, '1 Std.'], [0, '⏱ egal']], chat.minutes, 'Zeit:')}</div>
+      <button class="btn primary block" data-action="chef-go" ${key ? '' : 'disabled'}>👨‍🍳 Koch, leg los!</button>
+    </section>`;
+}
+
+function chefConversation() {
+  const last = chat.messages.at(-1);
+  const answer = lastAnswer();
+  const done = !chat.busy && last?.role === 'assistant';
+  const used = done ? usedItems(answer, store.items()) : [];
+  return `
+    ${chat.messages.map((m) => (m.role === 'user'
+      ? `<p class="bubble">${esc(m.show || m.content)}</p>`
+      : `<article class="card chef-answer">${renderMarkdown(m.content)}</article>`)).join('')}
+    ${chat.busy ? `<article class="card chef-answer" id="chef-live" aria-live="polite">${chat.live ? renderMarkdown(chat.live) : '<p class="thinking">Der Koch überlegt<span class="dots"></span></p>'}</article>
+      <button class="btn block" data-action="chef-stop">Stopp</button>` : ''}
+    ${chat.error ? `<p class="hint danger">${esc(chat.error)}</p>${last?.role === 'user' ? '<button class="btn primary block" data-action="chef-retry">Nochmal versuchen</button>' : ''}` : ''}
+    ${done ? `
+      ${used.length ? '<button class="btn primary block" data-action="chef-cooked">✓ Gekocht! Zutaten austragen</button>' : ''}
+      ${ideas(answer).length ? `<div class="chips wrap idea-chips">${ideas(answer).map((x) => `<button class="chip" data-action="chef-idea" data-idea="${esc(x)}">Lieber: ${esc(x)}</button>`).join('')}</div>` : ''}` : ''}
+    ${chat.busy ? '' : `
+      <form class="input-row" data-form="chef">
+        <input id="chef-ask" type="text" autocomplete="off" enterkeyhint="send" placeholder="Frag nach: „ohne Ofen?“, „was statt Sahne?“" aria-label="Frage an den Koch">
+        <button class="icon-btn" aria-label="Senden">➤</button>
+      </form>
+      <button class="link center-link" data-action="chef-reset">Neu anfangen</button>`}`;
+}
+
+async function chefSend(content, show) {
+  const apiKey = store.state.settings.aiKey;
+  if (!apiKey) return toast('Erst den API-Schlüssel eintragen');
+  if (chat.busy) return;
+  if (content) chat.messages.push({ role: 'user', content, show });
+  Object.assign(chat, { busy: true, live: '', error: '', ctrl: new AbortController() });
+  render();
+  $('#chef-live')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  try {
+    const { text, stop } = await askChef({
+      apiKey,
+      messages: chat.messages.map(({ role, content: c }) => ({ role, content: c })),
+      signal: chat.ctrl.signal,
+      onText: (t) => { chat.live = t; const el = $('#chef-live'); if (el) el.innerHTML = renderMarkdown(t); },
+    });
+    chat.messages.push({ role: 'assistant', content: stop === 'max_tokens' ? `${text}\n\n_(Die Antwort war zu lang und wurde abgeschnitten.)_` : text });
+  } catch (e) {
+    // Bei „Stopp“ bleibt das schon Geschriebene stehen.
+    if (chat.ctrl?.signal.aborted && chat.live) chat.messages.push({ role: 'assistant', content: chat.live });
+    else chat.error = e.message;
+  } finally {
+    Object.assign(chat, { busy: false, live: '', ctrl: null });
+    if (current() === 'koch') render();
+  }
+}
+
+function chefStart() {
+  const text = $('#chef-text')?.value ?? chat.draft;
+  chat.draft = text;
+  const items = store.items().filter((i) => !i.offered);
+  const usePantry = chat.pantry && items.length > 0;
+  if (!text.trim() && !usePantry) return toast('Schreib kurz, was du da hast');
+  const veg = store.state.settings.veg;
+  const content = firstMessage({ text, pantry: usePantry ? pantryForChef(items) : '', persons: chat.persons, minutes: chat.minutes, veg });
+  const show = [text.trim(), usePantry && '📦 mein Vorrat', `${chat.persons} ${chat.persons === 1 ? 'Person' : 'Personen'}`, chat.minutes ? `${chat.minutes} Min.` : 'Zeit egal', veg && 'vegetarisch'].filter(Boolean).join(' · ');
+  chefSend(content, show);
+}
+
+function chefCookedSheet() {
+  const used = usedItems(lastAnswer(), store.items());
+  openSheet(`
+    <h2 id="sheet-title">Guten Appetit! 👨‍🍳</h2>
+    <p class="muted small">Was hast du aus dem Vorrat verbraucht? Haken weg bei allem, was noch da ist.</p>
+    <ul class="list compact checks">${used.map((i) => `<li class="item"><label><input type="checkbox" data-use="${i.id}" checked>
+      <span class="emoji">${i.emoji}</span><span class="item-text"><b>${esc(i.name)}</b>${i.qty > 1 ? ` <small>× ${i.qty}, 1 wird ausgetragen</small>` : ''}</span>${badge(i)}</label></li>`).join('')}</ul>
+    <button class="btn primary block" data-action="cooked">Austragen</button>
   `);
 }
 
@@ -389,6 +504,12 @@ function renderBilanz() {
       <button class="set" data-action="calendar"><span>📅</span><span><b>In den Kalender eintragen</b><small>Erinnerung am Vorabend für alles, was in den nächsten 3 Wochen abläuft</small></span></button>
       ${notif !== 'unsupported' ? `<button class="set" data-action="notify"><span>🔔</span><span><b>Mitteilungen ${notif === 'granted' ? 'sind an' : 'erlauben'}</b><small>Hinweis beim Öffnen, wenn heute etwas abläuft</small></span></button>` : ''}
     </div>
+    <h3 class="group">KI-Koch</h3>
+    <div class="card settings">
+      ${store.state.settings.aiKey
+    ? `<button class="set" data-action="chef-key-remove"><span>🔑</span><span><b>API-Schlüssel entfernen</b><small>Gespeichert: …${esc(store.state.settings.aiKey.slice(-4))} · nur auf diesem Gerät, nicht in der Sicherung</small></span></button>`
+    : '<a class="set" href="#/koch"><span>🔑</span><span><b>KI-Koch einrichten</b><small>API-Schlüssel von Anthropic eintragen</small></span></a>'}
+    </div>
     <h3 class="group">Daten</h3>
     <div class="card settings">
       <button class="set" data-action="export"><span>💾</span><span><b>Sicherung speichern</b><small>Alles bleibt auf diesem Gerät – hier als Datei sichern</small></span></button>
@@ -437,7 +558,7 @@ const actions = {
     if (!i.offered) location.hash = '#/teilen';
   },
   // Hinzufügen
-  listen,
+  listen: () => listen(),
   'quick-add': (el) => {
     const input = $('#add-text');
     input.value = input.value.trim() ? `${input.value.replace(/,\s*$/, '')}, ${el.dataset.name}` : el.dataset.name;
@@ -481,6 +602,18 @@ const actions = {
     closeSheet();
     toast(`Guten Appetit! ${ids.length} ${ids.length === 1 ? 'Sache' : 'Sachen'} gerettet 🌱`, () => undos.reverse().forEach((u) => u()));
   },
+  // KI-Koch
+  'chef-go': chefStart,
+  'chef-retry': () => chefSend(),
+  'chef-stop': () => chat.ctrl?.abort(),
+  'chef-reset': () => { chat.ctrl?.abort(); Object.assign(chat, { messages: [], error: '' }); render(); window.scrollTo(0, 0); },
+  'chef-idea': (el) => chefSend(`Mach mir lieber „${el.dataset.idea}“ – bitte als vollständiges Rezept.`, `Lieber: ${el.dataset.idea}`),
+  'chef-cooked': chefCookedSheet,
+  'chef-pantry': () => { chat.pantry = !chat.pantry; render(); },
+  'chef-persons': (el) => { chat.persons = +el.dataset.v; render(); },
+  'chef-minutes': (el) => { chat.minutes = +el.dataset.v; render(); },
+  'chef-listen': (el) => listen($('#chef-text'), () => { chat.draft = $('#chef-text').value; }, el),
+  'chef-key-remove': () => { if (confirm('API-Schlüssel von diesem Gerät entfernen?')) { store.setting('aiKey', ''); toast('Schlüssel entfernt'); } },
   // Einkauf
   'shop-toggle': (el) => store.toggleShopping(el.dataset.id),
   'shop-remove': (el) => store.removeShopping(el.dataset.id),
@@ -559,7 +692,22 @@ document.addEventListener('change', (e) => {
 });
 
 document.addEventListener('submit', (e) => {
-  if (e.target.dataset.form !== 'shop') return;
+  const form = e.target.dataset.form;
+  if (form === 'chef') {
+    e.preventDefault();
+    const q = $('#chef-ask').value.trim();
+    if (q) chefSend(q, q);
+    return;
+  }
+  if (form === 'ai-key') {
+    e.preventDefault();
+    const key = $('#ai-key').value.trim();
+    if (!key) return toast('Bitte den Schlüssel einfügen');
+    store.setting('aiKey', key);
+    toast('Gespeichert – der Koch ist bereit');
+    return;
+  }
+  if (form !== 'shop') return;
   e.preventDefault();
   const input = $('#shop-text');
   const text = input.value;
@@ -567,6 +715,9 @@ document.addEventListener('submit', (e) => {
   for (const x of parseFreeText(text)) store.addShopping(x.name, x.qty);
   $('#shop-text')?.focus();
 });
+
+// Entwurf für den Koch nicht verlieren, wenn die Ansicht neu gezeichnet wird.
+document.addEventListener('input', (e) => { if (e.target.id === 'chef-text') chat.draft = e.target.value; });
 
 $('#photo').addEventListener('change', (e) => {
   const f = e.target.files[0];
@@ -582,7 +733,7 @@ $('#backup').addEventListener('change', async (e) => {
 });
 
 // ---------- Navigation ----------
-const ROUTES = { vorrat: renderVorrat, rezepte: renderRezepte, einkauf: renderEinkauf, teilen: renderTeilen, bilanz: renderBilanz };
+const ROUTES = { vorrat: renderVorrat, rezepte: renderRezepte, koch: renderKoch, einkauf: renderEinkauf, teilen: renderTeilen, bilanz: renderBilanz };
 const current = () => location.hash.replace('#/', '').split('?')[0] || 'vorrat';
 
 function render() {
@@ -592,7 +743,8 @@ function render() {
   const keep = active?.dataset?.setting ? active.dataset.setting : null;
   ROUTES[route]();
   if (keep) view.querySelector(`[data-setting="${keep}"]`)?.focus();
-  document.querySelectorAll('#tabs a').forEach((a) => a.classList.toggle('on', a.dataset.tab === route));
+  const tab = route === 'koch' ? 'rezepte' : route;
+  document.querySelectorAll('#tabs a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
   const shopCount = store.state.shopping.filter((s) => !s.done).length;
   $('#tabs [data-tab="einkauf"]').dataset.count = shopCount || '';
 }
