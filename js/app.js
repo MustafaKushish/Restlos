@@ -307,12 +307,16 @@ function recipeSheet(n) {
 // ---------- KI-Koch ----------
 // Das Gespräch lebt nur im Speicher: messages geht an Claude, show ist die kurze Fassung für die Anzeige.
 const chat = { messages: [], live: '', busy: false, error: '', draft: '', pantry: true, persons: 2, minutes: 30, ctrl: null };
+// In der Vorschau auf claude.ai kocht Claude über das Konto des Betrachters (dort ist das Netz gesperrt).
+let previewChef = null;
+globalThis.claude?.use?.('sample').then((sm) => { previewChef = sm; if (sm && current() === 'koch') render(); }).catch(() => {});
 const lastAnswer = () => [...chat.messages].reverse().find((m) => m.role === 'assistant')?.content || '';
 
 function renderKoch() {
-  const ready = !!chefProvider(store.state.settings.aiKey, CONFIG.chefServer);
+  const ready = !!chefProvider(store.state.settings.aiKey, CONFIG.chefServer, previewChef);
   view.innerHTML = `
     <section class="hero"><h1>👨‍🍳 Dein KI-Koch</h1><p>Schreib, was du hast – der Koch macht das Beste daraus. Auch wenn du noch nie gekocht hast.</p></section>
+    ${previewChef ? '<p class="hint">Vorschau: Hier kocht Claude über dein Claude-Konto. In der echten App kocht Gemini mit deinem Schlüssel.</p>' : ''}
     ${ready ? '' : `
     <section class="card">
       <b>Einmal einrichten: kostenloser Schlüssel</b>
@@ -372,7 +376,7 @@ function chefConversation() {
 
 async function chefSend(content, show) {
   const apiKey = store.state.settings.aiKey;
-  if (!chefProvider(apiKey, CONFIG.chefServer)) return toast('Erst den Schlüssel eintragen');
+  if (!chefProvider(apiKey, CONFIG.chefServer, previewChef)) return toast('Erst den Schlüssel eintragen');
   if (chat.busy) return;
   if (content) chat.messages.push({ role: 'user', content, show });
   Object.assign(chat, { busy: true, live: '', error: '', ctrl: new AbortController() });
@@ -382,6 +386,7 @@ async function chefSend(content, show) {
     const { text, stop } = await askChef({
       apiKey,
       server: CONFIG.chefServer,
+      sample: previewChef,
       messages: chat.messages.map(({ role, content: c }) => ({ role, content: c })),
       signal: chat.ctrl.signal,
       onText: (t) => { chat.live = t; const el = $('#chef-live'); if (el) el.innerHTML = renderMarkdown(t); },

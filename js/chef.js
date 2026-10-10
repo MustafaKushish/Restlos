@@ -76,7 +76,9 @@ export function chefRequest(messages) {
 
 // Wer kocht? Ein eigener Gemini-Schlüssel (kostenlos bei Google AI Studio, beginnt mit „AIza“),
 // ein eigener Claude-Schlüssel („sk-ant-“) – oder ohne Schlüssel der Restlos-Koch-Server (config.js).
-export function chefProvider(apiKey, server) {
+// In der Vorschau auf claude.ai ist das Netz gesperrt; dort kocht Claude über das Claude-Konto des Betrachters (sample).
+export function chefProvider(apiKey, server, sample) {
+  if (sample) return 'preview';
   if (apiKey?.startsWith('sk-ant-')) return 'claude';
   if (apiKey) return 'gemini';
   return server ? 'server' : null;
@@ -84,8 +86,9 @@ export function chefProvider(apiKey, server) {
 
 // Fragt den Koch und streamt die Antwort Stück für Stück an onText.
 // Gibt { text, stop } zurück; Fehler werden als verständliche deutsche Meldung geworfen.
-export function askChef({ apiKey, server, ...rest }) {
-  const provider = chefProvider(apiKey, server);
+export function askChef({ apiKey, server, sample, ...rest }) {
+  const provider = chefProvider(apiKey, server, sample);
+  if (provider === 'preview') return askPreview({ sample, ...rest });
   if (provider === 'claude') return askClaude({ apiKey, ...rest });
   if (provider === 'gemini') return askGemini({ apiKey, ...rest });
   if (provider === 'server') return askGemini({ server, ...rest });
@@ -178,6 +181,26 @@ export function geminiError(status, body) {
   if (status === 401 || status === 403) return 'Der API-Schlüssel stimmt nicht oder darf Gemini nicht nutzen. Bitte unter „Bilanz → KI-Koch“ prüfen.';
   if (status === 429) return 'Gerade zu viele Anfragen – bitte in einer Minute nochmal.';
   return `Der Koch ist gerade nicht erreichbar (Fehler ${status || '?'}). Bitte gleich nochmal.`;
+}
+
+// ---------- Vorschau auf claude.ai ----------
+// sample() kennt keine System-Anweisung: Die Koch-Anweisungen gehen als erste Nachricht mit.
+async function askPreview({ sample, messages, onText, signal }) {
+  try {
+    const { text, truncated } = await sample([{ role: 'user', content: SYSTEM }, ...messages], {
+      cache: false, signal, onText: ({ text: t }) => onText?.(t),
+    });
+    return { text, stop: truncated ? 'max_tokens' : 'end_turn' };
+  } catch (e) {
+    const msg = {
+      cancelled: 'Abgebrochen.',
+      not_granted: 'Ohne deine Erlaubnis kann der Koch in der Vorschau nicht kochen.',
+      sampling_disabled: 'In dieser Vorschau ist der Koch nicht verfügbar.',
+      rate_limited: 'Gerade zu viele Anfragen – bitte später nochmal.',
+      refused: 'Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.',
+    }[e?.code] || 'Der Koch ist gerade nicht erreichbar. Bitte gleich nochmal.';
+    throw new Error(msg, { cause: e });
+  }
 }
 
 // ---------- Claude (eigener Schlüssel von Anthropic) ----------

@@ -212,3 +212,16 @@ test('Koch-Server: nur die eigene App, nur Koch-Gespräche, Schlüssel bleibt au
   }
   assert.equal(validMessages(Array.from({ length: 21 }, () => ({ role: 'user', content: 'x' }))), false);
 });
+
+test('Vorschau auf claude.ai: Claude kocht mit den Koch-Anweisungen als erster Nachricht', async () => {
+  let got;
+  const sample = async (input, opts) => { got = { input, opts }; opts.onText({ text: 'Hi', delta: 'Hi' }); return { text: 'Hi', truncated: false }; };
+  assert.equal(chefProvider('AIzaX', '', sample), 'preview');
+  const res = await askChef({ apiKey: 'AIzaX', sample, messages: [{ role: 'user', content: 'Eier' }] });
+  assert.equal(res.text, 'Hi');
+  assert.match(got.input[0].content, /Profikoch/);
+  assert.deepEqual(got.input[1], { role: 'user', content: 'Eier' });
+  assert.equal(got.opts.cache, false);
+  const denied = async () => { throw { code: 'not_granted', message: 'x' }; };
+  await assert.rejects(askChef({ sample: denied, messages: [{ role: 'user', content: 'x' }] }), /Erlaubnis/);
+});
