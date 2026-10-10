@@ -1,5 +1,6 @@
-// KI-Koch: Ein Profikoch (Claude) macht aus dem, was da ist – zuerst aus dem, was bald abläuft – ein Gericht,
-// das auch Kochanfänger hinbekommen. Die Anfrage geht direkt vom Gerät an Claude; der API-Schlüssel bleibt lokal.
+// KI-Koch: Ein Profikoch macht aus dem, was da ist – zuerst aus dem, was bald abläuft – ein Gericht,
+// das auch Kochanfänger hinbekommen. Standard ist Gemini (kostenlose Stufe von Google), entweder über den
+// Restlos-Koch-Server oder mit eigenem Schlüssel; mit eigenem Claude-Schlüssel kocht Claude. Schlüssel bleiben lokal.
 // Alles außer askChef() ist ohne DOM und Netz, damit es testbar bleibt.
 import { iso, daysLeft, status } from './pantry.js';
 import { byId, PLACES } from './products.js';
@@ -73,12 +74,117 @@ export function chefRequest(messages) {
   };
 }
 
-let sdk;
-const loadSdk = () => (sdk ??= import('./vendor/anthropic-sdk.js').then((m) => m.default));
+// Wer kocht? Ein eigener Gemini-Schlüssel (kostenlos bei Google AI Studio, beginnt mit „AIza“),
+// ein eigener Claude-Schlüssel („sk-ant-“) – oder ohne Schlüssel der Restlos-Koch-Server (config.js).
+export function chefProvider(apiKey, server) {
+  if (apiKey?.startsWith('sk-ant-')) return 'claude';
+  if (apiKey) return 'gemini';
+  return server ? 'server' : null;
+}
 
 // Fragt den Koch und streamt die Antwort Stück für Stück an onText.
 // Gibt { text, stop } zurück; Fehler werden als verständliche deutsche Meldung geworfen.
-export async function askChef({ apiKey, messages, onText, signal, fetch }) {
+export function askChef({ apiKey, server, ...rest }) {
+  const provider = chefProvider(apiKey, server);
+  if (provider === 'claude') return askClaude({ apiKey, ...rest });
+  if (provider === 'gemini') return askGemini({ apiKey, ...rest });
+  if (provider === 'server') return askGemini({ server, ...rest });
+  return Promise.reject(new Error('Der Koch ist noch nicht eingerichtet.'));
+}
+
+// ---------- Gemini (kostenlose Stufe von Google) ----------
+// Kostenlose Modelle in der Reihenfolge, in der wir sie probieren. Ist bei einem das Tageslimit
+// erreicht (429) oder gibt es das Modell nicht mehr (404), kommt das nächste dran.
+export const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+export function geminiRequest(messages) {
+  return {
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    // Gemini will abwechselnd user/model – zwei Nachrichten hintereinander (z. B. nach einem Fehler) werden zusammengelegt.
+    contents: messages.reduce((out, m) => {
+      const role = m.role === 'assistant' ? 'model' : 'user';
+      if (out.at(-1)?.role === role) out.at(-1).parts.push({ text: m.content });
+      else out.push({ role, parts: [{ text: m.content }] });
+      return out;
+    }, []),
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
+  };
+}
+
+// Liest einen SSE-Strom („data: {...}“) Zeile für Zeile.
+async function* sseData(body) {
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    buf += done ? dec.decode() : dec.decode(value, { stream: true });
+    const lines = buf.split(/\r?\n/);
+    buf = done ? '' : lines.pop();
+    for (const line of lines) if (line.startsWith('data:')) yield line.slice(5).trim();
+    if (done) return;
+  }
+}
+
+async function askGemini({ apiKey, server, messages, onText, signal, fetch = globalThis.fetch }) {
+  // Der Server baut die Anfrage selbst (mit genau diesen Koch-Anweisungen) – er bekommt nur das Gespräch.
+  const body = JSON.stringify(server ? { messages } : geminiRequest(messages));
+  let lastStatus = 0;
+  // Über den Server entscheidet der Server, welches Modell kocht.
+  for (const model of server ? [null] : GEMINI_MODELS) {
+    let res;
+    try {
+      res = server
+        ? await fetch(server, { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal })
+        : await fetch(`${GEMINI_URL}/${model}:streamGenerateContent?alt=sse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey }, body, signal });
+    } catch (e) {
+      throw new Error(e?.name === 'AbortError' ? 'Abgebrochen.' : 'Keine Verbindung zum Koch. Bist du online?', { cause: e });
+    }
+    if (!res.ok) {
+      lastStatus = res.status;
+      if (!server && (res.status === 404 || res.status === 429)) continue;
+      throw new Error(geminiError(res.status, await res.text().catch(() => '')));
+    }
+    let text = '';
+    let stop = null;
+    try {
+      for await (const data of sseData(res.body)) {
+        let chunk;
+        try { chunk = JSON.parse(data); } catch { continue; }
+        if (chunk.promptFeedback?.blockReason) stop = 'refusal';
+        const cand = chunk.candidates?.[0];
+        for (const part of cand?.content?.parts ?? []) {
+          if (part.text && !part.thought) { text += part.text; onText?.(text); }
+        }
+        if (cand?.finishReason) stop = cand.finishReason;
+      }
+    } catch (e) {
+      if (e?.name === 'AbortError') throw new Error('Abgebrochen.', { cause: e });
+      throw new Error('Die Verbindung zum Koch ist abgebrochen. Bitte nochmal.', { cause: e });
+    }
+    if (stop === 'refusal' || (['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST'].includes(stop) && !text)) {
+      throw new Error('Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.');
+    }
+    return { text, stop: stop === 'MAX_TOKENS' ? 'max_tokens' : 'end_turn' };
+  }
+  throw new Error(lastStatus === 429
+    ? 'Der kostenlose Koch hat für heute zu viel zu tun. Bitte später nochmal – oder morgen.'
+    : geminiError(lastStatus, ''));
+}
+
+export function geminiError(status, body) {
+  if (status === 400 && /api.?key/i.test(body)) return 'Der API-Schlüssel stimmt nicht. Bitte unter „Bilanz → KI-Koch“ prüfen.';
+  if (status === 401 || status === 403) return 'Der API-Schlüssel stimmt nicht oder darf Gemini nicht nutzen. Bitte unter „Bilanz → KI-Koch“ prüfen.';
+  if (status === 429) return 'Gerade zu viele Anfragen – bitte in einer Minute nochmal.';
+  return `Der Koch ist gerade nicht erreichbar (Fehler ${status || '?'}). Bitte gleich nochmal.`;
+}
+
+// ---------- Claude (eigener Schlüssel von Anthropic) ----------
+let sdk;
+const loadSdk = () => (sdk ??= import('./vendor/anthropic-sdk.js').then((m) => m.default));
+
+async function askClaude({ apiKey, messages, onText, signal, fetch }) {
   const Anthropic = await loadSdk();
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, ...(fetch ? { fetch } : {}) });
   let text = '';

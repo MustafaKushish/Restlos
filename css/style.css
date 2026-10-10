@@ -182,6 +182,8 @@ small { font-size: 0.82em; }
 .idea-chips { margin-top: 10px; }
 .center-link { display: block; margin: 6px auto 12px; }
 a.set { color: inherit; text-decoration: none; }
+.support { margin-top: 14px; background: var(--accent-soft); border-color: transparent; }
+.support p { margin: 6px 0 0; }
 
 /* Formulare */
 .input-row { display: flex; gap: 8px; align-items: center; margin: 10px 0; }

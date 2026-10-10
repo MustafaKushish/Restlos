@@ -5,7 +5,8 @@ import { iso, addDays, daysLeft, status, stats, openItem, parseFreeText, makeIte
 import { parseReceipt } from './receipt.js';
 import { suggest } from './recipes.js';
 import { shareItems, printPoster, calendarFile } from './share.js';
-import { askChef, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems } from './chef.js';
+import { CONFIG } from './config.js';
+import { askChef, chefProvider, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems } from './chef.js';
 
 const store = createStore();
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -37,6 +38,10 @@ function openSheet(html, onReady) {
 }
 const closeSheet = () => sheet.open && sheet.close();
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+
+// „Restlos unterstützen“ – nur sichtbar, wenn in config.js ein PayPal-Link steht.
+const supportUrl = /^https:\/\//.test(CONFIG.paypal) ? CONFIG.paypal : '';
+const supportLink = (text, cls = 'link') => (supportUrl ? `<a class="${cls}" href="${esc(supportUrl)}" target="_blank" rel="noopener">${text}</a>` : '');
 
 const badge = (item) => {
   const s = status(item);
@@ -305,21 +310,21 @@ const chat = { messages: [], live: '', busy: false, error: '', draft: '', pantry
 const lastAnswer = () => [...chat.messages].reverse().find((m) => m.role === 'assistant')?.content || '';
 
 function renderKoch() {
-  const key = store.state.settings.aiKey;
+  const ready = !!chefProvider(store.state.settings.aiKey, CONFIG.chefServer);
   view.innerHTML = `
     <section class="hero"><h1>👨‍🍳 Dein KI-Koch</h1><p>Schreib, was du hast – der Koch macht das Beste daraus. Auch wenn du noch nie gekocht hast.</p></section>
-    ${key ? '' : `
+    ${ready ? '' : `
     <section class="card">
-      <b>Einmal einrichten: API-Schlüssel</b>
-      <p class="small muted">Der Koch ist Claude von Anthropic. Dafür braucht die App einen API-Schlüssel: auf <b>console.anthropic.com</b> anmelden → „API Keys“ → „Create Key“ und hier einfügen. Der Schlüssel bleibt nur auf diesem Gerät. Ein Rezept kostet etwa 5–10 Cent.</p>
-      <form class="input-row" data-form="ai-key"><input id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-…" aria-label="API-Schlüssel"><button class="btn primary">Speichern</button></form>
+      <b>Einmal einrichten: kostenloser Schlüssel</b>
+      <p class="small muted">Der Koch nutzt Gemini von Google – kostenlos. Auf <b>aistudio.google.com</b> mit dem Google-Konto anmelden → „Get API key“ → „Create API key“ und hier einfügen. Der Schlüssel bleibt nur auf diesem Gerät.</p>
+      <form class="input-row" data-form="ai-key"><input id="ai-key" type="password" autocomplete="off" placeholder="AIza…" aria-label="API-Schlüssel"><button class="btn primary">Speichern</button></form>
     </section>`}
-    ${chat.messages.length ? chefConversation() : chefForm(key)}
+    ${chat.messages.length ? chefConversation() : chefForm(ready)}
     <p class="muted small center">Lieber ohne KI? <a href="#/rezepte">Fertige Reste-Rezepte</a></p>
   `;
 }
 
-function chefForm(key) {
+function chefForm(ready) {
   const items = store.items().filter((i) => !i.offered);
   const urgent = items.filter((i) => daysLeft(i) <= 3).length;
   const veg = store.state.settings.veg;
@@ -337,7 +342,7 @@ function chefForm(key) {
       </div>
       <div class="chips wrap">${seg('chef-persons', [[1, '1 Person'], [2, '2 Personen'], [4, '4 Personen']], chat.persons, 'Für')}</div>
       <div class="chips wrap">${seg('chef-minutes', [[15, '15 Min.'], [30, '30 Min.'], [60, '1 Std.'], [0, '⏱ egal']], chat.minutes, 'Zeit:')}</div>
-      <button class="btn primary block" data-action="chef-go" ${key ? '' : 'disabled'}>👨‍🍳 Koch, leg los!</button>
+      <button class="btn primary block" data-action="chef-go" ${ready ? '' : 'disabled'}>👨‍🍳 Koch, leg los!</button>
     </section>`;
 }
 
@@ -361,12 +366,13 @@ function chefConversation() {
         <input id="chef-ask" type="text" autocomplete="off" enterkeyhint="send" placeholder="Frag nach: „ohne Ofen?“, „was statt Sahne?“" aria-label="Frage an den Koch">
         <button class="icon-btn" aria-label="Senden">➤</button>
       </form>
-      <button class="link center-link" data-action="chef-reset">Neu anfangen</button>`}`;
+      <button class="link center-link" data-action="chef-reset">Neu anfangen</button>
+      ${done && supportUrl ? `<p class="muted small center">Schmeckt's? Der Koch ist kostenlos – ${supportLink('Restlos unterstützen')} 💚</p>` : ''}`}`;
 }
 
 async function chefSend(content, show) {
   const apiKey = store.state.settings.aiKey;
-  if (!apiKey) return toast('Erst den API-Schlüssel eintragen');
+  if (!chefProvider(apiKey, CONFIG.chefServer)) return toast('Erst den Schlüssel eintragen');
   if (chat.busy) return;
   if (content) chat.messages.push({ role: 'user', content, show });
   Object.assign(chat, { busy: true, live: '', error: '', ctrl: new AbortController() });
@@ -375,6 +381,7 @@ async function chefSend(content, show) {
   try {
     const { text, stop } = await askChef({
       apiKey,
+      server: CONFIG.chefServer,
       messages: chat.messages.map(({ role, content: c }) => ({ role, content: c })),
       signal: chat.ctrl.signal,
       onText: (t) => { chat.live = t; const el = $('#chef-live'); if (el) el.innerHTML = renderMarkdown(t); },
@@ -499,6 +506,12 @@ function renderBilanz() {
     ${s.topWasted.length ? `<section class="card tip">💡 Am häufigsten weggeworfen: <b>${s.topWasted.map(([n, c]) => `${esc(n)} (${c}×)`).join(', ')}</b>. Kleinere Packungen kaufen oder direkt nach dem Einkauf einen Teil einfrieren?</section>` : ''}`}
     <p class="muted small">Zum Vergleich: Ein Haushalt in Deutschland wirft im Schnitt rund 78 kg Lebensmittel pro Person und Jahr weg – Gegenwert etwa 300 €.</p>
 
+    ${supportUrl ? `
+    <section class="card support">
+      <b>💚 Restlos unterstützen</b>
+      <p class="small muted">Restlos ist kostenlos, ohne Werbung und hilft, Lebensmittel zu retten. Wenn dir die App hilft, freuen wir uns über eine kleine Spende – sie hält App und KI-Koch am Laufen.</p>
+      ${supportLink('Mit PayPal unterstützen', 'btn primary block')}
+    </section>` : ''}
     <h3 class="group">Erinnerungen</h3>
     <div class="card settings">
       <button class="set" data-action="calendar"><span>📅</span><span><b>In den Kalender eintragen</b><small>Erinnerung am Vorabend für alles, was in den nächsten 3 Wochen abläuft</small></span></button>
@@ -508,7 +521,8 @@ function renderBilanz() {
     <div class="card settings">
       ${store.state.settings.aiKey
     ? `<button class="set" data-action="chef-key-remove"><span>🔑</span><span><b>API-Schlüssel entfernen</b><small>Gespeichert: …${esc(store.state.settings.aiKey.slice(-4))} · nur auf diesem Gerät, nicht in der Sicherung</small></span></button>`
-    : '<a class="set" href="#/koch"><span>🔑</span><span><b>KI-Koch einrichten</b><small>API-Schlüssel von Anthropic eintragen</small></span></a>'}
+    : CONFIG.chefServer ? '<a class="set" href="#/koch"><span>👨‍🍳</span><span><b>KI-Koch ist an</b><small>Kostenlos über den Restlos-Koch-Server</small></span></a>'
+      : '<a class="set" href="#/koch"><span>🔑</span><span><b>KI-Koch einrichten</b><small>Kostenlosen Gemini-Schlüssel eintragen</small></span></a>'}
     </div>
     <h3 class="group">Daten</h3>
     <div class="card settings">

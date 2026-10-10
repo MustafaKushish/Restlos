@@ -1,0 +1,7 @@
+# Cloudflare Worker für den KI-Koch. Bereitstellen: siehe worker/README.md
+name = "restlos-koch"
+main = "koch.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://mustafakushish.github.io"
