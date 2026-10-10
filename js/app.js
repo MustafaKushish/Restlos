@@ -517,6 +517,11 @@ function renderBilanz() {
       <p class="small muted">Restlos ist kostenlos, ohne Werbung und hilft, Lebensmittel zu retten. Wenn dir die App hilft, freuen wir uns über eine kleine Spende – sie hält App und KI-Koch am Laufen.</p>
       ${supportLink('Mit PayPal unterstützen', 'btn primary block')}
     </section>` : ''}
+    ${installed() ? '' : `
+    <h3 class="group">App</h3>
+    <div class="card settings">
+      <button class="set" data-action="install"><span>📲</span><span><b>Restlos installieren</b><small>Auf Handy oder Computer – startet dann wie eine normale App, auch offline</small></span></button>
+    </div>`}
     <h3 class="group">Erinnerungen</h3>
     <div class="card settings">
       <button class="set" data-action="calendar"><span>📅</span><span><b>In den Kalender eintragen</b><small>Erinnerung am Vorabend für alles, was in den nächsten 3 Wochen abläuft</small></span></button>
@@ -538,6 +543,33 @@ function renderBilanz() {
     </div>
     <p class="muted small center">Restlos · Prototyp · Haltbarkeiten und CO₂-Werte sind Schätzungen.</p>
   `;
+}
+
+// ---------- Installieren ----------
+// Android und Chrome/Edge am Computer bieten einen eigenen Dialog an; iPhone und Safari nur über das Teilen-Menü.
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; });
+window.addEventListener('appinstalled', () => { installPrompt = null; toast('Restlos ist installiert 🎉'); render(); });
+const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+async function install() {
+  if (installPrompt) {
+    installPrompt.prompt();
+    await installPrompt.userChoice.catch(() => null);
+    installPrompt = null;
+    return;
+  }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  openSheet(`
+    <h2 id="sheet-title">Restlos installieren</h2>
+    ${ios ? `<ol class="steps">
+      <li>Diese Seite in <b>Safari</b> öffnen.</li>
+      <li>Unten auf <b>Teilen</b> tippen (Quadrat mit Pfeil nach oben).</li>
+      <li><b>„Zum Home-Bildschirm“</b> wählen und <b>Hinzufügen</b> tippen.</li></ol>`
+    : `<h3>Android</h3><ol class="steps"><li>In <b>Chrome</b> oben rechts auf <b>⋮</b> tippen.</li><li><b>„App installieren“</b> oder „Zum Startbildschirm hinzufügen“ wählen.</li></ol>
+      <h3>Computer</h3><ol class="steps"><li>In <b>Chrome</b> oder <b>Edge</b> rechts in der Adressleiste auf das Installieren-Symbol (Bildschirm mit Pfeil) klicken.</li><li>Oder im Menü <b>⋮ → „Restlos installieren“</b>. Am Mac in Safari: <b>Ablage → „Zum Dock hinzufügen“</b>.</li></ol>`}
+    <p class="muted small">Danach startet Restlos wie eine normale App, auch ohne Internet. Deine Daten bleiben auf dem Gerät.</p>
+  `);
 }
 
 // ---------- Beispiel-Vorrat ----------
@@ -621,6 +653,7 @@ const actions = {
     closeSheet();
     toast(`Guten Appetit! ${ids.length} ${ids.length === 1 ? 'Sache' : 'Sachen'} gerettet 🌱`, () => undos.reverse().forEach((u) => u()));
   },
+  install,
   // KI-Koch
   'chef-go': chefStart,
   'chef-retry': () => chefSend(),
