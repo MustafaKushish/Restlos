@@ -32,7 +32,11 @@ Wie man Übriggebliebenes aufbewahrt oder weiterverwendet.
 - Gericht – ein kurzer Satz
 - Gericht – ein kurzer Satz
 
-Bei Rückfragen („ohne Ofen?“, „was statt Sahne?“) antwortest du kurz und direkt. Nur wenn sich das Rezept dadurch ändert, schreibst du es vollständig neu in derselben Form.`;
+Bei Rückfragen („ohne Ofen?“, „was statt Sahne?“) antwortest du kurz und direkt. Nur wenn sich das Rezept dadurch ändert, schreibst du es vollständig neu in derselben Form.
+
+Bittet man dich um „Ideen aus meinem Vorrat“, schreibst du kein Rezept, sondern genau drei Zeilen und sonst nichts, jede in dieser Form:
+- Name des Gerichts | rettet: Zutat, Zutat | Minuten als Zahl | ein kurzer Satz, warum es lecker ist
+Die drei Ideen sind verschieden (z. B. etwas Warmes, etwas Schnelles, etwas Süßes oder Kaltes) und brauchen vor allem, was bald abläuft.`;
 
 // Der Vorrat als Liste für den Koch – dringendes zuerst, Verbrauchsdatum deutlich markiert.
 export function pantryForChef(items, today = iso()) {
@@ -57,6 +61,43 @@ export function firstMessage({ text = '', pantry = '', persons = 2, minutes = 30
   if (veg) frame.push('vegetarisch');
   parts.push(`Rahmen: ${frame.join(', ')}. Ich bin Kochanfänger. Was soll ich kochen?`);
   return parts.join('\n\n');
+}
+
+// „Ideen aus meinem Vorrat“: drei kurze Vorschläge, die man antippen kann.
+export function ideasMessage({ pantry, veg = false, avoid = [] }, today = iso()) {
+  const parts = [`Heute ist der ${today.split('-').reverse().join('.')}.`, `Mein Vorrat (das Dringendste zuerst):\n${pantry}`];
+  const wish = [veg && 'vegetarisch', avoid.length && `bitte nicht noch einmal: ${avoid.join(', ')}`].filter(Boolean);
+  parts.push(`Ideen aus meinem Vorrat${wish.length ? ` (${wish.join('; ')})` : ''}: Was könnte ich kochen? Bitte drei Ideen in der vereinbarten Zeilen-Form.`);
+  return parts.join('\n\n');
+}
+
+// „- Shakshuka | rettet: Tomaten, Paprika | 25 | Würzig und in einer Pfanne“ → { name, saves, minutes, why }
+export function parseIdeas(text) {
+  return String(text).replace(/\r/g, '').split('\n')
+    .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/\*\*/g, '').trim())
+    .filter((l) => l.includes('|'))
+    .map((l) => {
+      const [name, saves = '', minutes = '', why = ''] = l.split('|').map((x) => x.trim());
+      return {
+        name,
+        saves: saves.replace(/^rettet:?\s*/i, '').split(/,\s*|\s+und\s+/).map((x) => x.trim()).filter(Boolean).slice(0, 4),
+        minutes: parseInt(minutes, 10) || null,
+        why,
+      };
+    })
+    .filter((x) => x.name.length > 1 && x.name.length < 70)
+    .slice(0, 3);
+}
+
+// Fingerabdruck des Vorrats für die Ideen: Ändert sich, was bald weg muss, gibt es neue Ideen.
+export function pantryKey(items, today = iso()) {
+  return [today, ...items.filter((i) => !i.offered && daysLeft(i, today) <= 7).map((i) => `${i.pid || i.name}:${i.expires}`).sort()].join('|');
+}
+
+// Eine Sache retten: Rezept rund um das, was weg muss.
+export function rescueText(item, today = iso()) {
+  const s = status(item, today);
+  return `Ich möchte ${item.name}${item.qty > 1 ? ` (${item.qty}×)` : ''} retten, ${s.d < 0 ? `es ist ${s.label}` : s.d <= 1 ? `es muss ${s.label} weg` : `es läuft in ${s.d} Tagen ab`}. Was kann ich daraus machen? Es soll die Hauptrolle spielen.`;
 }
 
 // Anfrage an die Messages API. Opus 5.5 denkt immer adaptiv mit; effort steuert, wie gründlich.

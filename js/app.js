@@ -8,7 +8,8 @@ import { shareItems, printPoster, calendarFile } from './share.js';
 import { CONFIG } from './config.js';
 import { scanCamera, cameraSupported, MAX_SHOTS } from './camera.js';
 import { checkTotal } from './receiptai.js';
-import { askChef, chefProvider, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems } from './chef.js';
+import { askChef, chefProvider, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems, ideasMessage, parseIdeas, pantryKey, rescueText } from './chef.js';
+import { rescueTips, reminderPlan, reminderSchedule, remember, emptyMemo } from './rescue.js';
 
 const store = createStore();
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -22,11 +23,11 @@ const dateLabel = (s) => { const [y, m, d] = s.split('-').map(Number); return `$
 
 // ---------- kleine Helfer ----------
 let toastTimer;
-function toast(msg, undo) {
+function toast(msg, undo, label = 'Rückgängig') {
   const t = $('#toast');
   // Ein offenes Sheet liegt in der obersten Ebene – der Hinweis muss mit hinein, sonst ist er verdeckt.
   (sheet.open ? sheet : document.body).append(t);
-  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button data-action="undo">Rückgängig</button>' : ''}`;
+  t.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button data-action="undo">${esc(label)}</button>` : ''}`;
   t.classList.add('show');
   toast.undo = undo;
   clearTimeout(toastTimer);
@@ -83,9 +84,10 @@ function renderVorrat() {
     <section class="card alert">
       <div class="alert-head">⏰ Bald weg: ${urgent.slice(0, 4).map((i) => esc(i.name)).join(', ')}${urgent.length > 4 ? ' …' : ''}</div>
       <div class="row-btns">
-        <a class="btn primary" href="#/koch">👨‍🍳 Koch fragen</a>
-        <a class="btn" href="#/teilen">Verschenken</a>
+        <button class="btn primary" data-action="rescue">💡 Retten</button>
+        <a class="btn" href="#/koch">👨‍🍳 Koch fragen</a>
       </div>
+      ${remindAsk() ? '<button class="link small" data-action="notify">🔔 Rechtzeitig erinnern lassen</button>' : ''}
     </section>` : ''}
     <section class="quick">
       <button class="quick-btn" data-action="scan"><span>📷</span>Kassenbon</button>
@@ -131,6 +133,7 @@ function itemSheet(id) {
     <div class="sheet-head"><span class="emoji xl">${i.emoji}</span><div><h2 id="sheet-title">${esc(i.name)}${i.qty > 1 ? ` × ${i.qty}` : ''}</h2>
       <p>${badge(i)} <span class="muted">bis ${dateLabel(i.expires)}</span></p></div></div>
     ${hint}
+    ${s.d <= 3 ? rescueBox(i) : ''}
     <div class="actions">
       <button class="act good" data-action="consume" data-id="${i.id}" data-how="used">✓<span>Aufgebraucht</span></button>
       ${i.qty > 1 ? `<button class="act" data-action="consume" data-id="${i.id}" data-how="used" data-qty="1">½<span>1 Stück weg</span></button>` : ''}
@@ -147,6 +150,37 @@ function itemSheet(id) {
     </div>
     <p class="muted small">Gekauft ${dateLabel(i.bought)}${i.raw ? ` · auf dem Bon: „${esc(i.raw)}“` : ''}${p ? ` · ${CATS[p.cat].name}` : ''}</p>
     <button class="link danger" data-action="consume" data-id="${i.id}" data-how="removed">Falsch eingetragen – löschen</button>
+  `);
+}
+
+// ---------- Retten statt wegwerfen ----------
+// Kurze Tipps je Sache (ohne Internet), dazu der Koch für ein Rezept rund um genau diese Sache.
+function rescueBox(i, compact = false) {
+  const tips = rescueTips(i);
+  if (!tips.length) return '';
+  const vdOver = status(i).d < 0 && status(i).vd;
+  return `<div class="rescue ${compact ? 'compact' : ''}">
+    ${compact ? '' : '<b class="rescue-head">💡 So rettest du es</b>'}
+    <ul>${tips.map((t) => `<li><span>${t.icon}</span>${esc(t.text)}</li>`).join('')}</ul>
+    ${!vdOver && aiChefReady() ? `<button class="btn small" data-action="rescue-chef" data-id="${i.id}">👨‍🍳 Rezept mit ${esc(i.name)}</button>` : ''}
+  </div>`;
+}
+
+function rescueSheet() {
+  const items = store.items().filter((i) => !i.offered && daysLeft(i) <= 2 && !(daysLeft(i) < 0 && status(i).vd));
+  if (!items.length) return toast('Gerade muss nichts gerettet werden 🌱');
+  lastSuggestions = suggest(store.items().filter((i) => !i.offered), { vegOnly: store.state.settings.veg, limit: 5 });
+  const n = lastSuggestions.findIndex((r) => r.urgent.length);
+  const recipe = lastSuggestions[n];
+  openSheet(`
+    <h2 id="sheet-title">Retten statt wegwerfen</h2>
+    <p class="muted small">${items.length === 1 ? 'Diese Sache muss' : `Diese ${items.length} Sachen müssen`} bald weg. So wird noch was draus:</p>
+    ${recipe ? `<button class="card recipe rescue-recipe" data-action="recipe" data-n="${n}"><span class="emoji xl">${recipe.emoji}</span>
+      <span class="recipe-text"><b>${esc(recipe.title)}</b><small>${recipe.time} Min. · rettet ${recipe.urgent.map((i) => esc(i.name)).join(', ')}</small></span></button>` : ''}
+    <ul class="rescue-list">${items.map((i) => `<li class="card">
+      <div class="rescue-item"><span class="emoji">${i.emoji}</span><b>${esc(i.name)}</b>${badge(i)}</div>
+      ${rescueBox(i, true)}</li>`).join('')}</ul>
+    <a class="btn block" href="#/teilen" data-action="close-go">🤝 Lieber verschenken</a>
   `);
 }
 
@@ -394,6 +428,7 @@ function renderRezepte() {
     <section class="hero"><h1>Reste-Rezepte</h1><p>Sortiert nach dem, was zuerst weg muss.</p></section>
     <a class="card chef-entry" href="#/koch"><span class="emoji xl">👨‍🍳</span>
       <span><b>KI-Koch fragen</b><small>Schreib, was du hast – ein Profikoch macht daraus ein Rezept, das auch Anfängern gelingt.</small></span></a>
+    ${chefIdeasHtml(items)}
     <div class="chips"><button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 Nur vegetarisch</button></div>
     ${lastSuggestions.length ? `<div class="grid">${lastSuggestions.map((r, n) => `
       <button class="card recipe" data-action="recipe" data-n="${n}">
@@ -422,6 +457,75 @@ function recipeSheet(n) {
     <ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
     <button class="btn primary block" data-action="cooked">Gekocht! Zutaten austragen</button>
   `);
+}
+
+// ---------- Neue Ideen vom Koch ----------
+// Der Koch schaut selbst in den Vorrat und schlägt drei Gerichte vor. Neu gefragt wird nur, wenn sich geändert hat,
+// was bald weg muss (höchstens alle 30 Minuten von allein) – so bleibt das kostenlose Tageslimit unberührt.
+const IDEAS_KEY = 'restlos:ideen';
+const chefIdeas = (() => {
+  try { return { busy: false, error: '', ...JSON.parse(localStorage.getItem(IDEAS_KEY)) }; } catch { return { busy: false, error: '' }; }
+})();
+const aiChefReady = () => { const c = aiConn(); return !!chefProvider(c.apiKey, c.server, c.sample); };
+
+function chefIdeasHtml(items) {
+  const pantry = items.filter((i) => !i.offered);
+  if (!pantry.length || !aiChefReady()) return '';
+  const key = pantryKey(pantry);
+  if (!chefIdeas.busy && chefIdeas.key !== key && (!chefIdeas.list?.length || Date.now() - (chefIdeas.at || 0) > 30 * 60e3)) {
+    setTimeout(() => loadIdeas(), 0);
+    chefIdeas.busy = true;
+  }
+  const list = chefIdeas.list || [];
+  const cards = chefIdeas.busy
+    ? [0, 1, 2].map((k) => `<div class="card idea skeleton" style="--k:${k}"><span></span><span></span><span></span></div>`).join('')
+    : list.map((x, n) => `<button class="card idea" data-action="idea-cook" data-n="${n}" style="--k:${n}">
+        <b>${esc(x.name)}</b>
+        ${x.saves.length ? `<small class="save">🌱 rettet ${x.saves.map(esc).join(', ')}</small>` : ''}
+        ${x.why ? `<small>${esc(x.why)}</small>` : ''}
+        <small class="idea-meta">${x.minutes ? `⏱ ${x.minutes} Min. · ` : ''}Rezept ansehen →</small>
+      </button>`).join('');
+  return `<section class="ideas" aria-live="polite">
+    <div class="ideas-head"><h3 class="group">👨‍🍳 Neu vom Koch</h3>
+      ${chefIdeas.busy ? '' : `<button class="link small" data-action="ideas-more">${list.length ? 'Andere Ideen' : 'Ideen holen'}</button>`}</div>
+    ${chefIdeas.error ? `<p class="muted small">${esc(chefIdeas.error)}</p>` : ''}
+    ${cards ? `<div class="idea-grid">${cards}</div>` : ''}
+  </section>`;
+}
+
+async function loadIdeas(avoid = []) {
+  const pantry = store.items().filter((i) => !i.offered);
+  if (!pantry.length) return;
+  Object.assign(chefIdeas, { busy: true, error: '' });
+  if (current() === 'rezepte') render();
+  const key = pantryKey(pantry);
+  try {
+    const { text } = await askChef({
+      ...aiConn(),
+      messages: [{ role: 'user', content: ideasMessage({ pantry: pantryForChef(pantry), veg: store.state.settings.veg, avoid }) }],
+    });
+    const list = parseIdeas(text);
+    if (!list.length) throw new Error('Der Koch hatte gerade keine Idee. Tipp auf „Ideen holen“.');
+    Object.assign(chefIdeas, { list, key, at: Date.now() });
+    try { localStorage.setItem(IDEAS_KEY, JSON.stringify({ list, key, at: chefIdeas.at })); } catch { /* egal */ }
+  } catch (e) {
+    // Fehler merken, damit nicht bei jedem Öffnen neu gefragt wird – „Ideen holen“ versucht es wieder.
+    Object.assign(chefIdeas, { error: e.message, key, at: Date.now() });
+  } finally {
+    chefIdeas.busy = false;
+    if (current() === 'rezepte') render();
+  }
+}
+
+// Ein Gericht aus den Ideen oder eine Sache retten: frisches Gespräch mit dem Koch, Vorrat dabei.
+function chefWith(text, show) {
+  chat.ctrl?.abort();
+  Object.assign(chat, { messages: [], error: '', draft: '' });
+  const items = store.items().filter((i) => !i.offered);
+  const content = firstMessage({ text, pantry: pantryForChef(items), persons: chat.persons, minutes: chat.minutes, veg: store.state.settings.veg });
+  closeSheet();
+  location.hash = '#/koch';
+  chefSend(content, show);
 }
 
 // ---------- KI-Koch ----------
@@ -656,7 +760,7 @@ function renderBilanz() {
     <h3 class="group">Erinnerungen</h3>
     <div class="card settings">
       <button class="set" data-action="calendar"><span>📅</span><span><b>In den Kalender eintragen</b><small>Erinnerung am Vorabend für alles, was in den nächsten 3 Wochen abläuft</small></span></button>
-      ${notif !== 'unsupported' ? `<button class="set" data-action="notify"><span>🔔</span><span><b>Mitteilungen ${notif === 'granted' ? 'sind an' : 'erlauben'}</b><small>Hinweis beim Öffnen, wenn heute etwas abläuft</small></span></button>` : ''}
+      ${notif !== 'unsupported' ? `<button class="set" data-action="notify"><span>🔔</span><span><b>${remindOn() ? 'Erinnerungen sind an' : 'Erinnerungen einschalten'}</b><small>${remindOn() ? 'Höchstens eine am Tag, 2 Tage bevor etwas abläuft · antippen zum Ausschalten' : notif === 'denied' ? 'Mitteilungen sind im Browser gesperrt – dort erlauben' : 'Höchstens eine Mitteilung am Tag, 2 Tage bevor etwas abläuft'}</small></span></button>` : ''}
     </div>
     <h3 class="group">KI-Koch</h3>
     <div class="card settings">
@@ -784,6 +888,15 @@ const actions = {
     toast(`Guten Appetit! ${ids.length} ${ids.length === 1 ? 'Sache' : 'Sachen'} gerettet 🌱`, () => undos.reverse().forEach((u) => u()));
   },
   install,
+  // Retten & neue Ideen
+  rescue: () => rescueSheet(),
+  'rescue-chef': (el) => { const i = store.find(el.dataset.id); if (i) chefWith(rescueText(i), `🌱 ${i.name} retten`); },
+  'close-go': (el) => { closeSheet(); location.hash = el.getAttribute('href'); },
+  'ideas-more': () => loadIdeas((chefIdeas.list || []).map((x) => x.name)),
+  'idea-cook': (el) => {
+    const x = chefIdeas.list?.[+el.dataset.n];
+    if (x) chefWith(`Ich möchte „${x.name}“ kochen${x.saves.length ? ` – damit ${x.saves.join(', ')} weg${x.saves.length === 1 ? 'kommt' : 'kommen'}` : ''}.`, `💡 ${x.name}`);
+  },
   // KI-Koch
   'chef-go': chefStart,
   'chef-retry': () => chefSend(),
@@ -827,10 +940,18 @@ const actions = {
     download(ics, 'restlos-erinnerungen.ics', 'text/calendar');
   },
   notify: async () => {
-    if (Notification.permission === 'granted') return toast('Mitteilungen sind schon an');
-    const r = await Notification.requestPermission();
-    toast(r === 'granted' ? 'Mitteilungen an' : 'Mitteilungen wurden nicht erlaubt');
-    render();
+    if (!('Notification' in window)) return toast('Dieser Browser kann keine Mitteilungen – nutze den Kalender');
+    if (Notification.permission === 'granted' && store.state.settings.remind !== false) {
+      store.setting('remind', false);
+      syncReminders();
+      return toast('Erinnerungen aus');
+    }
+    const r = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (r !== 'granted') { render(); return toast('Mitteilungen wurden nicht erlaubt – in den Einstellungen des Browsers änderbar'); }
+    store.setting('remind', true);
+    syncReminders();
+    const bg = await backgroundReminders();
+    toast(bg ? 'Erinnerungen an – höchstens eine am Tag' : 'Erinnerungen an – kommen, wenn du Restlos öffnest');
   },
   export: () => download(store.exportJson(), `restlos-sicherung-${iso()}.json`, 'application/json'),
   import: () => $('#backup').click(),
@@ -941,24 +1062,85 @@ window.addEventListener('hashchange', () => {
 store.subscribe(render);
 render();
 
-// ---------- Erinnerung beim Öffnen ----------
-async function remind() {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const today = iso();
-  if (store.state.settings.notified === today) return;
-  const due = store.items().filter((i) => daysLeft(i) >= 0 && daysLeft(i) <= 1);
-  if (!due.length) return;
-  store.setting('notified', today);
-  const body = `${due.map((i) => i.name).join(', ')} ${due.length === 1 ? 'sollte' : 'sollten'} heute oder morgen weg. Tippe für Rezeptideen.`;
-  const reg = await navigator.serviceWorker?.ready.catch(() => null);
-  if (reg) reg.showNotification('Restlos', { body, icon: 'icons/icon-192.png', tag: 'restlos-due', data: { url: './#/rezepte' } });
-  else new Notification('Restlos', { body });
+// ---------- Erinnerungen ----------
+// Sparsam: höchstens eine am Tag, gebündelt, jede Sache nur einmal (rescue.js).
+// Im Hintergrund verschickt sie der Service Worker (sw.js) – dafür legt die App einen fertigen Fahrplan
+// in den Cache, denn localStorage kann der Service Worker nicht lesen. Das klappt nur, wo der Browser
+// regelmäßige Hintergrund-Aufgaben erlaubt (installierte App in Chrome/Edge). Sonst erinnert Restlos beim Öffnen.
+const REMIND_CACHE = 'restlos-erinnerung';
+const REMIND_FILE = 'erinnerung.json';
+const remindOn = () => 'Notification' in window && Notification.permission === 'granted' && store.state.settings.remind !== false;
+const remindAsk = () => 'Notification' in window && Notification.permission === 'default' && store.state.settings.remind !== false;
+
+async function readRemindCache() {
+  try { return await (await (await caches.open(REMIND_CACHE)).match(REMIND_FILE))?.json() ?? null; } catch { return null; }
 }
+
+// Das Gedächtnis liegt doppelt: in den Einstellungen (sicher) und im Cache (für den Service Worker).
+async function reminderMemo() {
+  const a = store.state.settings.reminder || emptyMemo();
+  const b = (await readRemindCache())?.memo || emptyMemo();
+  return { day: a.day > b.day ? a.day : b.day, seen: { ...a.seen, ...b.seen } };
+}
+
+// Rezeptidee für die Mitteilung: das beste Reste-Rezept, das etwas davon aufbraucht.
+const ideaFor = (due) => suggest(store.items().filter((i) => !i.offered), { vegOnly: store.state.settings.veg, limit: 6 })
+  .find((r) => r.uses.some((u) => due.some((d) => d.id === u.id)))?.title;
+
+let syncTimer;
+function syncReminders() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    if (!('caches' in window)) return;
+    const memo = await reminderMemo();
+    const items = store.items();
+    const data = { on: remindOn(), memo, schedule: remindOn() ? reminderSchedule(items, memo, iso(), ideaFor) : [] };
+    try { await (await caches.open(REMIND_CACHE)).put(REMIND_FILE, new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })); } catch { /* egal */ }
+  }, 400);
+}
+
+async function backgroundReminders() {
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    if (!reg?.periodicSync) return false;
+    const perm = await navigator.permissions?.query({ name: 'periodic-background-sync' }).catch(() => null);
+    if (perm && perm.state !== 'granted') return false;
+    await reg.periodicSync.register('restlos-erinnerung', { minInterval: 12 * 3600e3 });
+    return true;
+  } catch { return false; }
+}
+
+// Beim Öffnen: Ist heute etwas Neues fällig, sagt die App es selbst – ohne extra Mitteilung, du schaust ja gerade drauf.
+async function remindInApp() {
+  if (store.state.settings.remind === false || document.visibilityState !== 'visible') return;
+  const memo = await reminderMemo();
+  const items = store.items();
+  const plan = reminderPlan(items, memo, iso(), ideaFor);
+  if (!plan) return;
+  store.setting('reminder', remember(memo, plan, iso(), items));
+  syncReminders();
+  if (sheet.open) return;
+  toast(`⏰ ${plan.title}`, () => rescueSheet(), 'Retten-Ideen');
+}
+
+// Tipp auf die Mitteilung (…#/vorrat?retten=1) öffnet die Retten-Ideen.
+function openFromLink() {
+  if (!location.hash.includes('retten=1')) return;
+  history.replaceState(null, '', '#/vorrat');
+  render();
+  setTimeout(rescueSheet, 200);
+}
+window.addEventListener('hashchange', openFromLink);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
-setTimeout(remind, 1500);
+store.subscribe(syncReminders);
+syncReminders();
+if (remindOn()) backgroundReminders();
+openFromLink();
+setTimeout(remindInApp, 1500);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') remindInApp(); });
 // Schnellzugriff vom Startbildschirm („Kassenbon scannen“)
 if (location.hash.includes('scan=1')) { history.replaceState(null, '', '#/vorrat'); startScan(); }
 
