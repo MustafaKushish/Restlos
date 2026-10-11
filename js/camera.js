@@ -148,6 +148,8 @@ export async function scanCamera({ existing = [] } = {}) {
       d.removeEventListener('cancel', onCancel);
       input.removeEventListener('change', onPick);
       d.close();
+      // Sonst bleibt nach „Zurück“ ein Fokus-Rahmen um den Kassenbon-Knopf stehen.
+      document.activeElement?.blur();
       for (const [b, u] of urls) if (!result?.includes(b)) URL.revokeObjectURL(u);
       resolve(result);
     };

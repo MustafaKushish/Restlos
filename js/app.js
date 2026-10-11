@@ -41,6 +41,9 @@ function openSheet(html, onReady) {
 }
 const closeSheet = () => sheet.open && sheet.close();
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+// Beim Schließen gibt der Browser den Fokus an den Knopf zurück, der das Fenster geöffnet hat. Nach „Zurück“
+// zeigt er dann einen Rahmen um den Knopf – den wollen wir nicht stehen lassen.
+sheet.addEventListener('close', () => document.activeElement?.blur());
 
 // „Restlos unterstützen“ – nur sichtbar, wenn in config.js ein PayPal-Link steht.
 const supportUrl = /^https:\/\//.test(CONFIG.paypal) ? CONFIG.paypal : '';
