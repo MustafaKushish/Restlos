@@ -46,6 +46,41 @@ sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); }
 const supportUrl = /^https:\/\//.test(CONFIG.paypal) ? CONFIG.paypal : '';
 const supportLink = (text, cls = 'link') => (supportUrl ? `<a class="${cls}" href="${esc(supportUrl)}" target="_blank" rel="noopener">${text}</a>` : '');
 
+// Warum es Restlos gibt: kostenlos, aus Überzeugung – und was jede gerettete Sache bringt.
+function missionCard(s) {
+  const mine = s && s.saved ? `<p class="mission-mine">Du hast in den letzten 30 Tagen <b>${s.saved} Lebensmittel</b> gerettet – das sind rund <b>${euro(s.savedEuro)}</b> und <b>${kg(s.savedCo2)} CO₂</b>.</p>` : '';
+  return `<section class="card mission" id="mission">
+    <span class="mission-badge">Kostenlos · ohne Werbung · ohne Abo</span>
+    <h2>Gemacht, damit weniger im Müll landet</h2>
+    <p>Restlos ist kein Geschäftsmodell, sondern ein Herzensprojekt. Die App ist kostenlos und bleibt es – für alle, die beim ganz normalen Einkaufen etwas für ihren Geldbeutel und für unsere Umwelt tun möchten.</p>
+    <ul class="mission-points">
+      <li><span>🥕</span><span><b>Weniger wegwerfen</b>In Deutschland landen pro Person rund 78 kg Lebensmittel im Jahr im Müll – oft nur, weil man sie vergessen hat. Restlos erinnert dich rechtzeitig und zeigt, was du daraus kochen kannst.</span></li>
+      <li><span>🌍</span><span><b>Die Umwelt schützen</b>In jedem Lebensmittel stecken Wasser, Energie und CO₂. Was du isst statt wegwirfst, war nicht umsonst produziert.</span></li>
+      <li><span>💶</span><span><b>Geld sparen</b>Weggeworfene Lebensmittel kosten einen Haushalt im Schnitt mehrere hundert Euro im Jahr. Was du rettest, bleibt in deinem Geldbeutel.</span></li>
+    </ul>
+    ${mine}
+    <div class="mission-support">
+      <b>💚 Restlos unterstützen</b>
+      <p>Damit Restlos bald auch im App Store und bei Google Play erscheint und der KI-Koch weiter kostenlos kocht, freuen wir uns über eine freiwillige Unterstützung. Jeder Betrag hilft – keiner ist Pflicht. Alle Funktionen bleiben für alle frei.</p>
+      ${supportUrl ? supportLink('💚 Restlos unterstützen', 'btn primary block') : '<p class="muted small">Die Möglichkeit zum Unterstützen kommt in Kürze.</p>'}
+    </div>
+  </section>`;
+}
+
+// Kleiner Dank an Meilensteinen (10, 50, 100 … gerettete Sachen) – jeweils nur einmal.
+const MILESTONES = [10, 50, 100, 250, 500];
+function milestoneCard() {
+  const saved = stats(store.state.log, iso(), 3650).saved;
+  const m = [...MILESTONES].reverse().find((x) => saved >= x);
+  if (!m || (store.state.settings.milestone || 0) >= m) return '';
+  return `<section class="card mission-nudge">
+    <button class="sheet-close" data-action="milestone-ok" data-m="${m}" aria-label="Schließen">✕</button>
+    <b>🎉 Schon ${m} Lebensmittel gerettet!</b>
+    <p class="small">Danke, dass du mitmachst. Restlos ist kostenlos und aus Überzeugung entstanden – damit weniger im Müll landet.</p>
+    <a class="link small" href="#/bilanz?mission=1" data-action="mission" data-m="${m}">Warum es Restlos gibt${supportUrl ? ' · unterstützen' : ''}</a>
+  </section>`;
+}
+
 const badge = (item) => {
   const s = status(item);
   return `<span class="badge ${s.level}">${s.label}</span>`;
@@ -89,6 +124,7 @@ function renderVorrat() {
       </div>
       ${remindAsk() ? '<button class="link small" data-action="notify">🔔 Rechtzeitig erinnern lassen</button>' : ''}
     </section>` : ''}
+    ${milestoneCard()}
     <section class="quick">
       <button class="quick-btn" data-action="scan"><span>📷</span>Kassenbon</button>
       <button class="quick-btn" data-action="add" data-voice="1"><span>🎤</span>Sprechen</button>
@@ -598,7 +634,7 @@ function chefConversation() {
         <button class="icon-btn" aria-label="Senden">➤</button>
       </form>
       <button class="link center-link" data-action="chef-reset">Neu anfangen</button>
-      ${done && supportUrl ? `<p class="muted small center">Schmeckt's? Der Koch ist kostenlos – ${supportLink('Restlos unterstützen')} 💚</p>` : ''}`}`;
+      ${done ? `<p class="muted small center">Schmeckt's? Restlos und der Koch sind kostenlos – aus Überzeugung. ${supportUrl ? supportLink('Restlos unterstützen') : '<a class="link" href="#/bilanz?mission=1">Warum?</a>'} 💚</p>` : ''}`}`;
 }
 
 async function chefSend(content, show) {
@@ -744,14 +780,7 @@ function renderBilanz() {
       <div class="card stat"><b>${kg(all.savedCo2)}</b><small>CO₂ insgesamt gerettet</small></div>
     </div>
     ${s.topWasted.length ? `<section class="card tip">💡 Am häufigsten weggeworfen: <b>${s.topWasted.map(([n, c]) => `${esc(n)} (${c}×)`).join(', ')}</b>. Kleinere Packungen kaufen oder direkt nach dem Einkauf einen Teil einfrieren?</section>` : ''}`}
-    <p class="muted small">Zum Vergleich: Ein Haushalt in Deutschland wirft im Schnitt rund 78 kg Lebensmittel pro Person und Jahr weg – Gegenwert etwa 300 €.</p>
-
-    ${supportUrl ? `
-    <section class="card support">
-      <b>💚 Restlos unterstützen</b>
-      <p class="small muted">Restlos ist kostenlos, ohne Werbung und hilft, Lebensmittel zu retten. Wenn dir die App hilft, freuen wir uns über eine kleine Spende – sie hält App und KI-Koch am Laufen.</p>
-      ${supportLink('Mit PayPal unterstützen', 'btn primary block')}
-    </section>` : ''}
+    ${missionCard(s.rate === null ? null : s)}
     ${installed() ? '' : `
     <h3 class="group">App</h3>
     <div class="card settings">
@@ -776,7 +805,7 @@ function renderBilanz() {
       <button class="set" data-action="demo"><span>🧪</span><span><b>Beispiel-Vorrat laden</b><small>Zum Ausprobieren</small></span></button>
       <button class="set danger" data-action="reset"><span>🗑</span><span><b>Alles löschen</b></span></button>
     </div>
-    <p class="muted small center">Restlos · Prototyp · Haltbarkeiten und CO₂-Werte sind Schätzungen.</p>
+    <p class="muted small center">Restlos · kostenlos und werbefrei · Haltbarkeiten und CO₂-Werte sind Schätzungen.</p>
   `;
 }
 
@@ -888,6 +917,8 @@ const actions = {
     toast(`Guten Appetit! ${ids.length} ${ids.length === 1 ? 'Sache' : 'Sachen'} gerettet 🌱`, () => undos.reverse().forEach((u) => u()));
   },
   install,
+  'milestone-ok': (el) => store.setting('milestone', +el.dataset.m),
+  mission: (el) => { store.setting('milestone', Math.max(store.state.settings.milestone || 0, +el.dataset.m)); location.hash = '#/bilanz?mission=1'; },
   // Retten & neue Ideen
   rescue: () => rescueSheet(),
   'rescue-chef': (el) => { const i = store.find(el.dataset.id); if (i) chefWith(rescueText(i), `🌱 ${i.name} retten`); },
@@ -1052,6 +1083,11 @@ function render() {
   document.querySelectorAll('#tabs a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
   const shopCount = store.state.shopping.filter((s) => !s.done).length;
   $('#tabs [data-tab="einkauf"]').dataset.count = shopCount || '';
+  // Link „Warum es Restlos gibt“ (…#/bilanz?mission=1): sanft zur Karte scrollen.
+  if (location.hash.includes('mission=1')) {
+    history.replaceState(null, '', '#/bilanz');
+    setTimeout(() => $('#mission')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  }
 }
 
 let lastRoute = current();

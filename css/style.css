@@ -232,6 +232,26 @@ a.set { color: inherit; text-decoration: none; }
 .support { margin-top: 14px; background: var(--accent-soft); border-color: transparent; }
 .support p { margin: 6px 0 0; }
 
+/* Warum es Restlos gibt */
+.mission { margin-top: 16px; padding: 20px; scroll-margin-top: 80px; animation: rise 0.4s ease both;
+  background: linear-gradient(160deg, var(--accent-soft), var(--card) 70%); }
+.mission h2 { font-size: 22px; letter-spacing: -0.01em; margin: 10px 0 8px; }
+.mission > p { margin: 0 0 12px; }
+.mission-badge { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; padding: 4px 10px; border-radius: 999px; background: var(--accent); color: var(--on-accent); }
+.mission-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.mission-points li { display: flex; gap: 12px; align-items: flex-start; }
+.mission-points li > span:first-child { font-size: 24px; line-height: 1.2; flex: none; }
+.mission-points b { display: block; }
+.mission-points li > span:last-child { color: var(--muted); font-size: 15px; }
+.mission-points li > span:last-child b { color: var(--text); font-size: 16px; }
+.mission-mine { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); }
+.mission-support { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.mission-support p { margin: 6px 0 0; font-size: 15px; color: var(--muted); }
+.mission-nudge { position: relative; background: var(--accent-soft); border-color: transparent; padding-right: 48px; animation: rise 0.35s ease both; }
+.mission-nudge p { margin: 4px 0 6px; }
+.mission-nudge .sheet-close { top: 8px; right: 8px; }
+@media (min-width: 700px) { .mission-points { grid-template-columns: repeat(3, 1fr); gap: 16px; } .mission { padding: 24px; } }
+
 /* Formulare */
 .input-row { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
 .input-row input { flex: 1; }
