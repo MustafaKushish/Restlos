@@ -628,6 +628,12 @@ export default {
     "Windows": "Windows",
     "Hier ist etwas schiefgelaufen.": "حدث خطأ ما هنا.",
     "Neu laden": "إعادة التحميل",
+    "Betrag wählen": "اختر المبلغ",
+    "Eigener Betrag": "مبلغ آخر",
+    "{euro} mit PayPal geben": "ادفع {euro} عبر PayPal",
+    "Apple Pay · Google Pay · Karte": "Apple Pay · Google Pay · بطاقة",
+    "Den Betrag gibst du dort noch einmal ein.": "ستُدخل المبلغ هناك مرة أخرى.",
+    "Bitte einen Betrag zwischen 1 und 500 € eingeben": "يرجى إدخال مبلغ بين 1 و500 €",
   },
   products: {
     "bananen": "موز",

@@ -56,9 +56,37 @@ sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); }
 // zeigt er dann einen Rahmen um den Knopf – den wollen wir nicht stehen lassen.
 sheet.addEventListener('close', () => document.activeElement?.blur());
 
-// „Restlos unterstützen“ – nur sichtbar, wenn in config.js ein PayPal-Link steht.
-const supportUrl = /^https:\/\//.test(CONFIG.paypal) ? CONFIG.paypal : '';
-const supportLink = (text, cls = 'link') => (supportUrl ? `<a class="${cls}" href="${esc(supportUrl)}" target="_blank" rel="noopener">${text}</a>` : '');
+// „Restlos unterstützen“ – nur sichtbar, wenn in config.js ein PayPal- oder Stripe-Link steht.
+const paypalUrl = /^https:\/\//.test(CONFIG.paypal) ? CONFIG.paypal : '';
+const cardUrl = /^https:\/\//.test(CONFIG.cardPay || '') ? CONFIG.cardPay : '';
+const supportUrl = paypalUrl || cardUrl;
+const supportLink = (text, cls = 'link') => (supportUrl ? `<a class="${cls}" href="#/bilanz?mission=1">${text}</a>` : '');
+const DONATE = [3, 5, 10, 20];
+let donateAmount = 5;
+const euroShort = (n) => n.toLocaleString(locale(), { style: 'currency', currency: 'EUR', maximumFractionDigits: n % 1 ? 2 : 0 });
+
+// Betrag wählen (Vorschläge oder eigener Betrag), dann PayPal oder – falls eingerichtet – Apple Pay / Google Pay / Karte.
+function donateBox() {
+  if (!supportUrl) return `<p class="muted small">${t('Die Möglichkeit zum Unterstützen kommt in Kürze.')}</p>`;
+  const custom = !DONATE.includes(donateAmount);
+  return `<div class="donate">
+    <span class="field">${t('Betrag wählen')}</span>
+    <div class="donate-amounts" role="group" aria-label="${t('Betrag wählen')}">
+      ${DONATE.map((v) => `<button class="chip ${v === donateAmount ? 'on' : ''}" data-action="donate-amount" data-v="${v}" aria-pressed="${v === donateAmount}">${euroShort(v)}</button>`).join('')}
+      <label class="donate-free ${custom ? 'on' : ''}"><input id="donate-free" type="text" inputmode="decimal" autocomplete="off" maxlength="6" placeholder="${t('Eigener Betrag')}" value="${custom ? donateAmount : ''}" aria-label="${t('Eigener Betrag')}"><span>€</span></label>
+    </div>
+    ${paypalUrl ? `<button class="btn primary block" data-action="donate-paypal">${t('{euro} mit PayPal geben', { euro: `<b class="donate-sum">${euroShort(donateAmount)}</b>` })}</button>` : ''}
+    ${cardUrl ? `<button class="btn block pay-btn" data-action="donate-card"><span>${t('Apple Pay · Google Pay · Karte')}</span></button>
+      <p class="muted small center">${t('Den Betrag gibst du dort noch einmal ein.')}</p>` : ''}
+  </div>`;
+}
+
+function setDonate(v) {
+  donateAmount = v;
+  document.querySelectorAll('[data-action="donate-amount"]').forEach((b) => { const on = +b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  document.querySelector('.donate-free')?.classList.toggle('on', !DONATE.includes(v));
+  document.querySelectorAll('.donate-sum').forEach((el) => { el.textContent = euroShort(v); });
+}
 
 // Warum es Restlos gibt: kostenlos, aus Überzeugung – und was jede gerettete Sache bringt.
 function missionCard(s) {
@@ -76,7 +104,7 @@ function missionCard(s) {
     <div class="mission-support">
       <b>💚 ${t('Restlos unterstützen')}</b>
       <p>${t('Damit Restlos bald auch im App Store und bei Google Play erscheint und der KI-Koch weiter kostenlos kocht, freuen wir uns über eine freiwillige Unterstützung. Jeder Betrag hilft – keiner ist Pflicht. Alle Funktionen bleiben für alle frei.')}</p>
-      ${supportUrl ? supportLink(`💚 ${t('Restlos unterstützen')}`, 'btn primary block') : `<p class="muted small">${t('Die Möglichkeit zum Unterstützen kommt in Kürze.')}</p>`}
+      ${donateBox()}
     </div>
   </section>`;
 }
@@ -1011,6 +1039,14 @@ const actions = {
     toast(`${t('Guten Appetit!')} ${tn(ids.length, '1 Sache gerettet 🌱', '{n} Sachen gerettet 🌱')}`, () => undos.reverse().forEach((u) => u()));
   },
   install,
+  'donate-amount': (el) => { const f = $('#donate-free'); if (f) f.value = ''; setDonate(+el.dataset.v); },
+  'donate-paypal': () => {
+    if (!(donateAmount >= 1 && donateAmount <= 500)) return toast(t('Bitte einen Betrag zwischen 1 und 500 € eingeben'));
+    const u = new URL(paypalUrl);
+    u.searchParams.set('amount', donateAmount.toFixed(2));
+    window.open(u, '_blank', 'noopener');
+  },
+  'donate-card': () => window.open(cardUrl, '_blank', 'noopener'),
   'milestone-ok': (el) => store.setting('milestone', +el.dataset.m),
   mission: (el) => { store.setting('milestone', Math.max(store.state.settings.milestone || 0, +el.dataset.m)); location.hash = '#/bilanz?mission=1'; },
   // Retten & neue Ideen
@@ -1190,6 +1226,14 @@ function fixName(name) {
   const p = correctProduct(name);
   return p ? productName(p.id) : name;
 }
+
+// Eigener Betrag zum Unterstützen: sofort übernehmen, Komma oder Punkt.
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'donate-free') return;
+  const v = Math.round(parseFloat(e.target.value.replace(',', '.')) * 100) / 100;
+  setDonate(v > 0 ? v : 5);
+  if (!(v > 0)) document.querySelectorAll('[data-action="donate-amount"]').forEach((b) => b.classList.toggle('on', +b.dataset.v === 5));
+});
 
 // Entwurf für den Koch nicht verlieren, wenn die Ansicht neu gezeichnet wird.
 document.addEventListener('input', (e) => { if (e.target.id === 'chef-text') chat.draft = e.target.value; });

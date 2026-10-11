@@ -628,6 +628,12 @@ export default {
     "Windows": "Windows",
     "Hier ist etwas schiefgelaufen.": "Burada bir şeyler ters gitti.",
     "Neu laden": "Yeniden yükle",
+    "Betrag wählen": "Tutar seç",
+    "Eigener Betrag": "Başka tutar",
+    "{euro} mit PayPal geben": "PayPal ile {euro} ver",
+    "Apple Pay · Google Pay · Karte": "Apple Pay · Google Pay · Kart",
+    "Den Betrag gibst du dort noch einmal ein.": "Tutarı orada tekrar gireceksin.",
+    "Bitte einen Betrag zwischen 1 und 500 € eingeben": "Lütfen 1 ile 500 € arasında bir tutar gir",
   },
   products: {
     "bananen": "Muz",
