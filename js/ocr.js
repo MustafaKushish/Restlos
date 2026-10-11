@@ -1,6 +1,7 @@
 // Texterkennung für Kassenbon-Fotos – läuft komplett im Browser (Tesseract.js), das Foto verlässt das Gerät nicht.
 // Die Bibliothek (~3 MB inkl. deutscher Sprachdaten) wird erst beim ersten Scan geladen.
 import { mergeTexts } from './receipt.js';
+import { t } from './i18n.js';
 
 const SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
 let loading;
@@ -11,7 +12,7 @@ function loadLib() {
     const s = document.createElement('script');
     s.src = SRC;
     s.onload = () => resolve(globalThis.Tesseract);
-    s.onerror = () => { loading = null; reject(new Error('Texterkennung konnte nicht geladen werden. Bist du online?')); };
+    s.onerror = () => { loading = null; reject(new Error(t('Texterkennung konnte nicht geladen werden. Bist du online?'))); };
     document.head.append(s);
   });
   return loading;

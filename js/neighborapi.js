@@ -2,6 +2,7 @@
 // Ohne Konto: Beim ersten Mal bekommt das Gerät eine zufällige, anonyme Kennung – keine E-Mail, keine Telefonnummer.
 // Ohne eingerichtete Datenbank (config.js leer) gibt es eine Vorschau, die nur auf diesem Gerät speichert.
 import { expiresFor } from './neighbors.js';
+import { t } from './i18n.js';
 
 const SESSION_KEY = 'restlos:nachbarn-sitzung';
 const FIELDS = 'id,user_id,kind,city,street,title,body,nickname,reply_to,status,created_at,expires_at';
@@ -9,15 +10,15 @@ const FIELDS = 'id,user_id,kind,city,street,title,body,nickname,reply_to,status,
 // Fehlertexte der Datenbank (supabase/schema.sql) in verständliche Sätze übersetzen.
 export function apiError(status, body) {
   const m = String(body?.message || body?.msg || body?.error_description || body || '');
-  if (/restlos:telefon/.test(m)) return 'Bitte keine Telefonnummern.';
-  if (/restlos:kontakt/.test(m)) return 'Bitte keine E-Mails, Links oder Kontodaten.';
-  if (/restlos:hausnummer/.test(m)) return 'Bitte nur die Straße, ohne Hausnummer.';
-  if (/restlos:zu-viel/.test(m)) return 'Du hast gerade viel geschrieben. Bitte etwas später wieder.';
-  if (/restlos:laenge/.test(m)) return 'Der Text ist zu lang.';
-  if (/anonymous sign-ins are disabled/i.test(m)) return 'Die Nachbarschafts-Börse ist noch nicht freigeschaltet.';
-  if (status === 401 || status === 403) return 'Keine Berechtigung. Bitte die App neu laden.';
-  if (status === 429) return 'Gerade zu viele Anfragen. Bitte gleich nochmal.';
-  return `Das hat nicht geklappt (Fehler ${status || '?'}). Bitte gleich nochmal.`;
+  if (/restlos:telefon/.test(m)) return t('Bitte keine Telefonnummern.');
+  if (/restlos:kontakt/.test(m)) return t('Bitte keine E-Mails, Links oder Kontodaten.');
+  if (/restlos:hausnummer/.test(m)) return t('Bitte nur die Straße, ohne Hausnummer.');
+  if (/restlos:zu-viel/.test(m)) return t('Du hast gerade viel geschrieben. Bitte etwas später wieder.');
+  if (/restlos:laenge/.test(m)) return t('Der Text ist zu lang.');
+  if (/anonymous sign-ins are disabled/i.test(m)) return t('Die Nachbarschafts-Börse ist noch nicht freigeschaltet.');
+  if (status === 401 || status === 403) return t('Keine Berechtigung. Bitte die App neu laden.');
+  if (status === 429) return t('Gerade zu viele Anfragen. Bitte gleich nochmal.');
+  return t('Das hat nicht geklappt (Fehler {code}). Bitte gleich nochmal.', { code: status || '?' });
 }
 
 export function supabaseBackend({ url, key, fetch = globalThis.fetch, storage = globalThis.localStorage }) {
@@ -40,7 +41,7 @@ export function supabaseBackend({ url, key, fetch = globalThis.fetch, storage = 
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (e) {
-      throw new Error('Keine Verbindung. Bist du online?', { cause: e });
+      throw new Error(t('Keine Verbindung. Bist du online?'), { cause: e });
     }
     const text = await res.text();
     let data = null;

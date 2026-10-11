@@ -4,6 +4,7 @@
 // Alles außer askChef() ist ohne DOM und Netz, damit es testbar bleibt.
 import { iso, daysLeft, status } from './pantry.js';
 import { byId, PLACES } from './products.js';
+import { t, lang, LANGS, pname } from './i18n.js';
 
 export const MODEL = 'claude-opus-5-5';
 
@@ -38,6 +39,18 @@ Bittet man dich um „Ideen aus meinem Vorrat“, schreibst du kein Rezept, sond
 - Name des Gerichts | rettet: Zutat, Zutat | Minuten als Zahl | ein kurzer Satz, warum es lecker ist
 Die drei Ideen sind verschieden (z. B. etwas Warmes, etwas Schnelles, etwas Süßes oder Kaltes) und brauchen vor allem, was bald abläuft.`;
 
+// Andere Sprache: Der Koch antwortet darin, mit übersetzten Überschriften – die App findet „Das brauchst du“
+// und „Andere Ideen“ dann unter diesem Namen (section). Steht auch in der ersten Nachricht, damit es
+// über den Koch-Server (eigene, deutsche Anweisungen) genauso klappt.
+const HEADINGS = ['Das brauchst du', "So geht's", 'Profi-Tipp', 'Reste-Tipp', 'Andere Ideen'];
+export function langNote() {
+  if (lang === 'de') return '';
+  const map = HEADINGS.map((h) => `„${h}“ → „${t(h)}“`).join(', ');
+  return `Sprache: Antworte immer auf ${LANGS[lang].de}, auch wenn Vorrat und Nachrichten deutsch sind. Überschriften so übersetzen: ${map}. In den Ideen-Zeilen statt „rettet:“ → „${t('rettet:')}“.`;
+}
+export const systemPrompt = () => [SYSTEM, langNote()].filter(Boolean).join('\n\n');
+const withLang = (parts) => [...parts, langNote()].filter(Boolean).join('\n\n');
+
 // Der Vorrat als Liste für den Koch – dringendes zuerst, Verbrauchsdatum deutlich markiert.
 export function pantryForChef(items, today = iso()) {
   return [...items]
@@ -60,7 +73,7 @@ export function firstMessage({ text = '', pantry = '', persons = 2, minutes = 30
   const frame = [`${persons} ${persons === 1 ? 'Person' : 'Personen'}`, minutes ? `höchstens ${minutes} Minuten` : 'Zeit spielt keine Rolle'];
   if (veg) frame.push('vegetarisch');
   parts.push(`Rahmen: ${frame.join(', ')}. Ich bin Kochanfänger. Was soll ich kochen?`);
-  return parts.join('\n\n');
+  return withLang(parts);
 }
 
 // „Ideen aus meinem Vorrat“: drei kurze Vorschläge, die man antippen kann.
@@ -68,7 +81,7 @@ export function ideasMessage({ pantry, veg = false, avoid = [] }, today = iso())
   const parts = [`Heute ist der ${today.split('-').reverse().join('.')}.`, `Mein Vorrat (das Dringendste zuerst):\n${pantry}`];
   const wish = [veg && 'vegetarisch', avoid.length && `bitte nicht noch einmal: ${avoid.join(', ')}`].filter(Boolean);
   parts.push(`Ideen aus meinem Vorrat${wish.length ? ` (${wish.join('; ')})` : ''}: Was könnte ich kochen? Bitte drei Ideen in der vereinbarten Zeilen-Form.`);
-  return parts.join('\n\n');
+  return withLang(parts);
 }
 
 // „- Shakshuka | rettet: Tomaten, Paprika | 25 | Würzig und in einer Pfanne“ → { name, saves, minutes, why }
@@ -80,7 +93,8 @@ export function parseIdeas(text) {
       const [name, saves = '', minutes = '', why = ''] = l.split('|').map((x) => x.trim());
       return {
         name,
-        saves: saves.replace(/^rettet:?\s*/i, '').split(/,\s*|\s+und\s+/).map((x) => x.trim()).filter(Boolean).slice(0, 4),
+        // „rettet:“ – oder dasselbe Wort in einer anderen Sprache („saves:“)
+        saves: saves.replace(/^rettet:?\s*/i, '').replace(/^[^:,]{1,20}:\s*/, '').split(/,\s*|\s+und\s+/).map((x) => x.trim()).filter(Boolean).slice(0, 4),
         minutes: parseInt(minutes, 10) || null,
         why,
       };
@@ -97,7 +111,7 @@ export function pantryKey(items, today = iso()) {
 // Eine Sache retten: Rezept rund um das, was weg muss.
 export function rescueText(item, today = iso()) {
   const s = status(item, today);
-  return `Ich möchte ${item.name}${item.qty > 1 ? ` (${item.qty}×)` : ''} retten, ${s.d < 0 ? `es ist ${s.label}` : s.d <= 1 ? `es muss ${s.label} weg` : `es läuft in ${s.d} Tagen ab`}. Was kann ich daraus machen? Es soll die Hauptrolle spielen.`;
+  return `Ich möchte ${item.name}${item.qty > 1 ? ` (${item.qty}×)` : ''} retten, ${s.d < 0 ? `es ist ${s.label}` : s.d <= 1 ? `es muss ${s.label} weg` : `es läuft in ${s.d} Tagen ab`}. Was kann ich daraus machen? Es soll die Hauptrolle spielen.${lang === 'de' ? '' : `\n\n${langNote()}`}`;
 }
 
 // Anfrage an die Messages API. Opus 5.5 denkt immer adaptiv mit; effort steuert, wie gründlich.
@@ -106,7 +120,7 @@ export function chefRequest(messages) {
   return {
     model: MODEL,
     max_tokens: 16000,
-    system: SYSTEM,
+    system: systemPrompt(),
     output_config: { effort: 'medium' },
     cache_control: { type: 'ephemeral' },
     betas: ['server-side-fallback-2026-07-01'],
@@ -133,7 +147,7 @@ export function askChef({ apiKey, server, sample, ...rest }) {
   if (provider === 'claude') return askClaude({ apiKey, ...rest });
   if (provider === 'gemini') return askGemini({ apiKey, ...rest });
   if (provider === 'server') return askGemini({ server, ...rest });
-  return Promise.reject(new Error('Der Koch ist noch nicht eingerichtet.'));
+  return Promise.reject(new Error(t('Der Koch ist noch nicht eingerichtet.')));
 }
 
 // ---------- Gemini (kostenlose Stufe von Google) ----------
@@ -146,7 +160,7 @@ export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/mode
 
 export function geminiRequest(messages) {
   return {
-    systemInstruction: { parts: [{ text: SYSTEM }] },
+    systemInstruction: { parts: [{ text: systemPrompt() }] },
     // Gemini will abwechselnd user/model – zwei Nachrichten hintereinander (z. B. nach einem Fehler) werden zusammengelegt.
     contents: messages.reduce((out, m) => {
       const role = m.role === 'assistant' ? 'model' : 'user';
@@ -185,7 +199,7 @@ async function askGemini({ apiKey, server, messages, onText, signal, fetch = glo
         ? await fetch(server, { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal })
         : await fetch(`${GEMINI_URL}/${model}:streamGenerateContent?alt=sse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey }, body, signal });
     } catch (e) {
-      throw new Error(e?.name === 'AbortError' ? 'Abgebrochen.' : 'Keine Verbindung zum Koch. Bist du online?', { cause: e });
+      throw new Error(e?.name === 'AbortError' ? t('Abgebrochen.') : t('Keine Verbindung zum Koch. Bist du online?'), { cause: e });
     }
     if (!res.ok) {
       lastStatus = res.status;
@@ -206,43 +220,43 @@ async function askGemini({ apiKey, server, messages, onText, signal, fetch = glo
         if (cand?.finishReason) stop = cand.finishReason;
       }
     } catch (e) {
-      if (e?.name === 'AbortError') throw new Error('Abgebrochen.', { cause: e });
-      throw new Error('Die Verbindung zum Koch ist abgebrochen. Bitte nochmal.', { cause: e });
+      if (e?.name === 'AbortError') throw new Error(t('Abgebrochen.'), { cause: e });
+      throw new Error(t('Die Verbindung zum Koch ist abgebrochen. Bitte nochmal.'), { cause: e });
     }
     if (stop === 'refusal' || (['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST'].includes(stop) && !text)) {
-      throw new Error('Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.');
+      throw new Error(t('Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.'));
     }
     return { text, stop: stop === 'MAX_TOKENS' ? 'max_tokens' : 'end_turn' };
   }
   throw new Error(lastStatus === 429
-    ? 'Der kostenlose Koch hat für heute zu viel zu tun. Bitte später nochmal – oder morgen.'
+    ? t('Der kostenlose Koch hat für heute zu viel zu tun. Bitte später nochmal – oder morgen.')
     : geminiError(lastStatus, ''));
 }
 
 export function geminiError(status, body) {
-  if (status === 400 && /api.?key/i.test(body)) return 'Der API-Schlüssel stimmt nicht. Bitte unter „Bilanz → KI-Koch“ prüfen.';
-  if (status === 401 || status === 403) return 'Der API-Schlüssel stimmt nicht oder darf Gemini nicht nutzen. Bitte unter „Bilanz → KI-Koch“ prüfen.';
-  if (status === 429) return 'Gerade zu viele Anfragen – bitte in einer Minute nochmal.';
-  if (status === 503) return 'Die kostenlose KI ist gerade überlastet. Bitte in ein paar Minuten nochmal.';
-  return `Der Koch ist gerade nicht erreichbar (Fehler ${status || '?'}). Bitte gleich nochmal.`;
+  if (status === 400 && /api.?key/i.test(body)) return t('Der API-Schlüssel stimmt nicht. Bitte unter „Bilanz → KI-Koch“ prüfen.');
+  if (status === 401 || status === 403) return t('Der API-Schlüssel stimmt nicht oder darf Gemini nicht nutzen. Bitte unter „Bilanz → KI-Koch“ prüfen.');
+  if (status === 429) return t('Gerade zu viele Anfragen – bitte in einer Minute nochmal.');
+  if (status === 503) return t('Die kostenlose KI ist gerade überlastet. Bitte in ein paar Minuten nochmal.');
+  return t('Der Koch ist gerade nicht erreichbar (Fehler {code}). Bitte gleich nochmal.', { code: status || '?' });
 }
 
 // ---------- Vorschau auf claude.ai ----------
 // sample() kennt keine System-Anweisung: Die Koch-Anweisungen gehen als erste Nachricht mit.
 async function askPreview({ sample, messages, onText, signal }) {
   try {
-    const { text, truncated } = await sample([{ role: 'user', content: SYSTEM }, ...messages], {
+    const { text, truncated } = await sample([{ role: 'user', content: systemPrompt() }, ...messages], {
       cache: false, signal, onText: ({ text: t }) => onText?.(t),
     });
     return { text, stop: truncated ? 'max_tokens' : 'end_turn' };
   } catch (e) {
     const msg = {
-      cancelled: 'Abgebrochen.',
-      not_granted: 'Ohne deine Erlaubnis kann der Koch in der Vorschau nicht kochen.',
-      sampling_disabled: 'In dieser Vorschau ist der Koch nicht verfügbar.',
-      rate_limited: 'Gerade zu viele Anfragen – bitte später nochmal.',
-      refused: 'Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.',
-    }[e?.code] || 'Der Koch ist gerade nicht erreichbar. Bitte gleich nochmal.';
+      cancelled: t('Abgebrochen.'),
+      not_granted: t('Ohne deine Erlaubnis kann der Koch in der Vorschau nicht kochen.'),
+      sampling_disabled: t('In dieser Vorschau ist der Koch nicht verfügbar.'),
+      rate_limited: t('Gerade zu viele Anfragen – bitte später nochmal.'),
+      refused: t('Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.'),
+    }[e?.code] || t('Der Koch ist gerade nicht erreichbar. Bitte gleich nochmal.');
     throw new Error(msg, { cause: e });
   }
 }
@@ -259,7 +273,7 @@ async function askClaude({ apiKey, messages, onText, signal, fetch }) {
     const stream = client.beta.messages.stream(chefRequest(messages), { signal });
     stream.on('text', (delta) => { text += delta; onText?.(text); });
     const msg = await stream.finalMessage();
-    if (msg.stop_reason === 'refusal') throw new Error('Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.');
+    if (msg.stop_reason === 'refusal') throw new Error(t('Dazu kann der Koch leider nichts sagen. Frag gern nach einem anderen Gericht.'));
     return { text, stop: msg.stop_reason };
   } catch (e) {
     throw new Error(chefError(e, Anthropic), { cause: e });
@@ -267,14 +281,14 @@ async function askClaude({ apiKey, messages, onText, signal, fetch }) {
 }
 
 export function chefError(e, Anthropic) {
-  if (e?.name === 'AbortError' || e instanceof Anthropic.APIUserAbortError) return 'Abgebrochen.';
-  if (e instanceof Anthropic.AuthenticationError) return 'Der API-Schlüssel stimmt nicht. Bitte unter „Bilanz → KI-Koch“ prüfen.';
-  if (e instanceof Anthropic.PermissionDeniedError) return 'Dieser API-Schlüssel darf den Koch nicht nutzen.';
-  if (e instanceof Anthropic.RateLimitError) return 'Gerade zu viele Anfragen – bitte in einer Minute nochmal.';
-  if (e instanceof Anthropic.APIConnectionError) return 'Keine Verbindung zum Koch. Bist du online?';
-  if (e instanceof Anthropic.BadRequestError && /credit/i.test(e.message)) return 'Das Guthaben des API-Kontos ist aufgebraucht.';
-  if (e instanceof Anthropic.APIError) return `Der Koch ist gerade nicht erreichbar (Fehler ${e.status ?? '?'}). Bitte gleich nochmal.`;
-  return e?.message || 'Unbekannter Fehler.';
+  if (e?.name === 'AbortError' || e instanceof Anthropic.APIUserAbortError) return t('Abgebrochen.');
+  if (e instanceof Anthropic.AuthenticationError) return t('Der API-Schlüssel stimmt nicht. Bitte unter „Bilanz → KI-Koch“ prüfen.');
+  if (e instanceof Anthropic.PermissionDeniedError) return t('Dieser API-Schlüssel darf den Koch nicht nutzen.');
+  if (e instanceof Anthropic.RateLimitError) return t('Gerade zu viele Anfragen – bitte in einer Minute nochmal.');
+  if (e instanceof Anthropic.APIConnectionError) return t('Keine Verbindung zum Koch. Bist du online?');
+  if (e instanceof Anthropic.BadRequestError && /credit/i.test(e.message)) return t('Das Guthaben des API-Kontos ist aufgebraucht.');
+  if (e instanceof Anthropic.APIError) return t('Der Koch ist gerade nicht erreichbar (Fehler {code}). Bitte gleich nochmal.', { code: e.status ?? '?' });
+  return e?.message || t('Unbekannter Fehler.');
 }
 
 // ---------- Antwort aufbereiten ----------
@@ -314,7 +328,8 @@ export function renderMarkdown(md) {
 // Abschnitt unter einer Überschrift („Das brauchst du“, „Andere Ideen“) als Text.
 export function section(md, title) {
   const lines = md.replace(/\r/g, '').split('\n');
-  const start = lines.findIndex((l) => /^#{1,4}\s/.test(l) && l.toLowerCase().includes(title.toLowerCase()));
+  const titles = [...new Set([title, t(title)])].map((x) => x.toLowerCase());
+  const start = lines.findIndex((l) => /^#{1,4}\s/.test(l) && titles.some((x) => l.toLowerCase().includes(x)));
   if (start < 0) return '';
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((l) => /^#{1,4}\s/.test(l));
@@ -336,7 +351,7 @@ const stem = (s) => s.toLowerCase().replace(/\s*\(.*\)/, '').trim().replace(/(en
 export function usedItems(md, items) {
   const text = (section(md, 'Das brauchst du') || md).toLowerCase();
   return items.filter((i) => {
-    const names = [i.name, i.pid && byId[i.pid]?.name].filter(Boolean);
+    const names = [i.name, i.pid && byId[i.pid]?.name, pname(i)].filter(Boolean);
     return names.some((n) => { const s = stem(n); return s.length >= 3 && text.includes(s); });
   });
 }

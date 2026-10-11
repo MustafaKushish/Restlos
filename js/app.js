@@ -11,32 +11,41 @@ import { checkTotal } from './receiptai.js';
 import { askChef, chefProvider, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems, ideasMessage, parseIdeas, pantryKey, rescueText } from './chef.js';
 import { rescueTips, reminderPlan, reminderSchedule, remember, emptyMemo } from './rescue.js';
 import { initNachbarn, renderNachbarn, neighborsLive } from './nachbarn.js';
+import { t, tn, lang, LANGS, locale, dir, saveLang, pname, productName, euro, num, dateLabel } from './i18n.js';
 
 const store = createStore();
+
+// Sprache der Seite: Richtung (Arabisch von rechts), feste Texte aus index.html übersetzen.
+document.documentElement.lang = lang;
+document.documentElement.dir = dir();
+document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.textContent.trim()); });
+document.querySelectorAll('[data-i18n-label]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nLabel)));
+document.getElementById('lang-code').textContent = lang.toUpperCase();
+document.querySelector('meta[name="description"]')?.setAttribute('content', t('Restlos – Vorrat ohne Tipparbeit: Kassenbon scannen, vor Verfall gewarnt werden, Reste verkochen oder im Hausflur verschenken.'));
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = $('#view');
 const sheet = $('#sheet');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const euro = (n) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-const kg = (n) => `${n.toLocaleString('de-DE', { maximumFractionDigits: n < 10 ? 1 : 0 })} kg`;
-const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const dateLabel = (s) => { const [y, m, d] = s.split('-').map(Number); return `${WD[new Date(y, m - 1, d).getDay()]}. ${d}.${m}.`; };
+const kg = (n) => `${num(n, { maximumFractionDigits: n < 10 ? 1 : 0 })} kg`;
+// Name in der gewählten Sprache, fertig für HTML
+const nm = (i) => esc(pname(i));
+const place = (p) => t(PLACES[p] ?? p);
 
 // ---------- kleine Helfer ----------
 let toastTimer;
-function toast(msg, undo, label = 'Rückgängig') {
-  const t = $('#toast');
+function toast(msg, undo, label = t('Rückgängig')) {
+  const el = $('#toast');
   // Ein offenes Sheet liegt in der obersten Ebene – der Hinweis muss mit hinein, sonst ist er verdeckt.
-  (sheet.open ? sheet : document.body).append(t);
-  t.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button data-action="undo">${esc(label)}</button>` : ''}`;
-  t.classList.add('show');
+  (sheet.open ? sheet : document.body).append(el);
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button data-action="undo">${esc(label)}</button>` : ''}`;
+  el.classList.add('show');
   toast.undo = undo;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), undo ? 6000 : 3000);
+  toastTimer = setTimeout(() => el.classList.remove('show'), undo ? 6000 : 3000);
 }
 
 function openSheet(html, onReady) {
-  sheet.innerHTML = `<div class="sheet-inner"><button class="sheet-close" data-action="close" aria-label="Schließen">✕</button>${html}</div>`;
+  sheet.innerHTML = `<div class="sheet-inner"><button class="sheet-close" data-action="close" aria-label="${t('Schließen')}">✕</button>${html}</div>`;
   if (!sheet.open) sheet.showModal();
   onReady?.(sheet);
 }
@@ -52,21 +61,21 @@ const supportLink = (text, cls = 'link') => (supportUrl ? `<a class="${cls}" hre
 
 // Warum es Restlos gibt: kostenlos, aus Überzeugung – und was jede gerettete Sache bringt.
 function missionCard(s) {
-  const mine = s && s.saved ? `<p class="mission-mine">Du hast in den letzten 30 Tagen <b>${s.saved} Lebensmittel</b> gerettet – das sind rund <b>${euro(s.savedEuro)}</b> und <b>${kg(s.savedCo2)} CO₂</b>.</p>` : '';
+  const mine = s && s.saved ? `<p class="mission-mine">${t('Du hast in den letzten 30 Tagen <b>{n} Lebensmittel</b> gerettet – das sind rund <b>{euro}</b> und <b>{co2} CO₂</b>.', { n: s.saved, euro: euro(s.savedEuro), co2: kg(s.savedCo2) })}</p>` : '';
   return `<section class="card mission" id="mission">
-    <span class="mission-badge">Kostenlos · ohne Werbung · ohne Abo</span>
-    <h2>Gemacht, damit weniger im Müll landet</h2>
-    <p>Restlos ist kein Geschäftsmodell, sondern ein Herzensprojekt. Die App ist kostenlos und bleibt es – für alle, die beim ganz normalen Einkaufen etwas für ihren Geldbeutel und für unsere Umwelt tun möchten.</p>
+    <span class="mission-badge">${t('Kostenlos · ohne Werbung · ohne Abo')}</span>
+    <h2>${t('Gemacht, damit weniger im Müll landet')}</h2>
+    <p>${t('Restlos ist kein Geschäftsmodell, sondern ein Herzensprojekt. Die App ist kostenlos und bleibt es – für alle, die beim ganz normalen Einkaufen etwas für ihren Geldbeutel und für unsere Umwelt tun möchten.')}</p>
     <ul class="mission-points">
-      <li><span>🥕</span><span><b>Weniger wegwerfen</b>In Deutschland landen pro Person rund 78 kg Lebensmittel im Jahr im Müll – oft nur, weil man sie vergessen hat. Restlos erinnert dich rechtzeitig und zeigt, was du daraus kochen kannst.</span></li>
-      <li><span>🌍</span><span><b>Die Umwelt schützen</b>In jedem Lebensmittel stecken Wasser, Energie und CO₂. Was du isst statt wegwirfst, war nicht umsonst produziert.</span></li>
-      <li><span>💶</span><span><b>Geld sparen</b>Weggeworfene Lebensmittel kosten einen Haushalt im Schnitt mehrere hundert Euro im Jahr. Was du rettest, bleibt in deinem Geldbeutel.</span></li>
+      <li><span>🥕</span><span><b>${t('Weniger wegwerfen')}</b>${t('In Deutschland landen pro Person rund 78 kg Lebensmittel im Jahr im Müll – oft nur, weil man sie vergessen hat. Restlos erinnert dich rechtzeitig und zeigt, was du daraus kochen kannst.')}</span></li>
+      <li><span>🌍</span><span><b>${t('Die Umwelt schützen')}</b>${t('In jedem Lebensmittel stecken Wasser, Energie und CO₂. Was du isst statt wegwirfst, war nicht umsonst produziert.')}</span></li>
+      <li><span>💶</span><span><b>${t('Geld sparen')}</b>${t('Weggeworfene Lebensmittel kosten einen Haushalt im Schnitt mehrere hundert Euro im Jahr. Was du rettest, bleibt in deinem Geldbeutel.')}</span></li>
     </ul>
     ${mine}
     <div class="mission-support">
-      <b>💚 Restlos unterstützen</b>
-      <p>Damit Restlos bald auch im App Store und bei Google Play erscheint und der KI-Koch weiter kostenlos kocht, freuen wir uns über eine freiwillige Unterstützung. Jeder Betrag hilft – keiner ist Pflicht. Alle Funktionen bleiben für alle frei.</p>
-      ${supportUrl ? supportLink('💚 Restlos unterstützen', 'btn primary block') : '<p class="muted small">Die Möglichkeit zum Unterstützen kommt in Kürze.</p>'}
+      <b>💚 ${t('Restlos unterstützen')}</b>
+      <p>${t('Damit Restlos bald auch im App Store und bei Google Play erscheint und der KI-Koch weiter kostenlos kocht, freuen wir uns über eine freiwillige Unterstützung. Jeder Betrag hilft – keiner ist Pflicht. Alle Funktionen bleiben für alle frei.')}</p>
+      ${supportUrl ? supportLink(`💚 ${t('Restlos unterstützen')}`, 'btn primary block') : `<p class="muted small">${t('Die Möglichkeit zum Unterstützen kommt in Kürze.')}</p>`}
     </div>
   </section>`;
 }
@@ -78,10 +87,10 @@ function milestoneCard() {
   const m = [...MILESTONES].reverse().find((x) => saved >= x);
   if (!m || (store.state.settings.milestone || 0) >= m) return '';
   return `<section class="card mission-nudge">
-    <button class="sheet-close" data-action="milestone-ok" data-m="${m}" aria-label="Schließen">✕</button>
-    <b>🎉 Schon ${m} Lebensmittel gerettet!</b>
-    <p class="small">Danke, dass du mitmachst. Restlos ist kostenlos und aus Überzeugung entstanden – damit weniger im Müll landet.</p>
-    <a class="link small" href="#/bilanz?mission=1" data-action="mission" data-m="${m}">Warum es Restlos gibt${supportUrl ? ' · unterstützen' : ''}</a>
+    <button class="sheet-close" data-action="milestone-ok" data-m="${m}" aria-label="${t('Schließen')}">✕</button>
+    <b>🎉 ${t('Schon {n} Lebensmittel gerettet!', { n: m })}</b>
+    <p class="small">${t('Danke, dass du mitmachst. Restlos ist kostenlos und aus Überzeugung entstanden – damit weniger im Müll landet.')}</p>
+    <a class="link small" href="#/bilanz?mission=1" data-action="mission" data-m="${m}">${t('Warum es Restlos gibt')}${supportUrl ? ` · ${t('unterstützen')}` : ''}</a>
   </section>`;
 }
 
@@ -97,16 +106,16 @@ function renderVorrat() {
   const items = store.items();
   const urgent = items.filter((i) => daysLeft(i) <= 2 && !i.offered);
   const hour = new Date().getHours();
-  const hello = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
+  const hello = t(hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend');
   const counts = { alle: items.length };
   for (const i of items) counts[i.place] = (counts[i.place] || 0) + 1;
   const shown = placeFilter === 'alle' ? items : items.filter((i) => i.place === placeFilter);
 
   const groups = [
-    ['Drüber – erst prüfen', (d) => d < 0],
-    ['Heute & morgen', (d) => d >= 0 && d <= 1],
-    ['Diese Woche', (d) => d > 1 && d <= 7],
-    ['Später', (d) => d > 7],
+    [t('Drüber – erst prüfen'), (d) => d < 0],
+    [t('Heute & morgen'), (d) => d >= 0 && d <= 1],
+    [t('Diese Woche'), (d) => d > 1 && d <= 7],
+    [t('Später'), (d) => d > 7],
   ];
   const list = groups.map(([title, test]) => {
     const g = shown.filter((i) => test(daysLeft(i)));
@@ -117,33 +126,33 @@ function renderVorrat() {
   view.innerHTML = `
     <section class="hero">
       <h1>${hello}!</h1>
-      <p>${items.length ? `${items.length} ${items.length === 1 ? 'Sache' : 'Sachen'} im Vorrat${urgent.length ? ` · <b>${urgent.length} ${urgent.length === 1 ? 'muss' : 'müssen'} bald weg</b>` : ' · alles im grünen Bereich'}` : 'Dein Vorrat ist noch leer.'}</p>
+      <p>${items.length ? `${tn(items.length, '1 Sache im Vorrat', '{n} Sachen im Vorrat')}${urgent.length ? ` · <b>${tn(urgent.length, '1 muss bald weg', '{n} müssen bald weg')}</b>` : ` · ${t('alles im grünen Bereich')}`}` : t('Dein Vorrat ist noch leer.')}</p>
     </section>
     ${urgent.length ? `
     <section class="card alert">
-      <div class="alert-head">⏰ Bald weg: ${urgent.slice(0, 4).map((i) => esc(i.name)).join(', ')}${urgent.length > 4 ? ' …' : ''}</div>
+      <div class="alert-head">⏰ ${t('Bald weg: {name}', { name: urgent.slice(0, 4).map(nm).join(', ') })}${urgent.length > 4 ? ' …' : ''}</div>
       <div class="row-btns">
-        <button class="btn primary" data-action="rescue">💡 Retten</button>
-        <a class="btn" href="#/koch">👨‍🍳 Koch fragen</a>
+        <button class="btn primary" data-action="rescue">💡 ${t('Retten')}</button>
+        <a class="btn" href="#/koch">👨‍🍳 ${t('Koch fragen')}</a>
       </div>
-      ${remindAsk() ? '<button class="link small" data-action="notify">🔔 Rechtzeitig erinnern lassen</button>' : ''}
+      ${remindAsk() ? `<button class="link small" data-action="notify">🔔 ${t('Rechtzeitig erinnern lassen')}</button>` : ''}
     </section>` : ''}
     ${milestoneCard()}
     <section class="quick">
-      <button class="quick-btn" data-action="scan"><span>📷</span>Kassenbon</button>
-      <button class="quick-btn" data-action="add" data-voice="1"><span>🎤</span>Sprechen</button>
-      <button class="quick-btn" data-action="add"><span>⌨️</span>Eintippen</button>
+      <button class="quick-btn" data-action="scan"><span>📷</span>${t('Kassenbon')}</button>
+      <button class="quick-btn" data-action="add" data-voice="1"><span>🎤</span>${t('Sprechen')}</button>
+      <button class="quick-btn" data-action="add"><span>⌨️</span>${t('Eintippen')}</button>
     </section>
     ${items.length ? `
     <div class="chips" role="tablist">
-      ${['alle', 'kuehl', 'vorrat', 'tk'].map((p) => `<button class="chip ${placeFilter === p ? 'on' : ''}" data-action="place" data-place="${p}">${p === 'alle' ? 'Alle' : PLACES[p]} <small>${counts[p] || 0}</small></button>`).join('')}
+      ${['alle', 'kuehl', 'vorrat', 'tk'].map((p) => `<button class="chip ${placeFilter === p ? 'on' : ''}" data-action="place" data-place="${p}">${p === 'alle' ? t('Alle') : place(p)} <small>${counts[p] || 0}</small></button>`).join('')}
     </div>
-    ${list ? `<div class="groups">${list}</div>` : '<p class="muted center">Hier liegt gerade nichts.</p>'}` : `
+    ${list ? `<div class="groups">${list}</div>` : `<p class="muted center">${t('Hier liegt gerade nichts.')}</p>`}` : `
     <section class="empty">
       <div class="big">🧺</div>
-      <p><b>Kein Eintippen von Ablaufdaten.</b> Fotografiere einfach deinen Kassenbon – Restlos erkennt die Lebensmittel und schätzt, wie lange sie halten.</p>
-      <button class="btn primary" data-action="scan">📷 Ersten Kassenbon scannen</button>
-      <button class="btn ghost" data-action="demo">Erst mal mit Beispiel-Vorrat ausprobieren</button>
+      <p><b>${t('Kein Eintippen von Ablaufdaten.')}</b> ${t('Fotografiere einfach deinen Kassenbon – Restlos erkennt die Lebensmittel und schätzt, wie lange sie halten.')}</p>
+      <button class="btn primary" data-action="scan">📷 ${t('Ersten Kassenbon scannen')}</button>
+      <button class="btn ghost" data-action="demo">${t('Erst mal mit Beispiel-Vorrat ausprobieren')}</button>
     </section>`}
   `;
 }
@@ -152,11 +161,11 @@ function row(i) {
   return `<li class="item ${i.offered ? 'offered' : ''}">
     <button class="item-main" data-action="item" data-id="${i.id}">
       <span class="emoji">${i.emoji}</span>
-      <span class="item-text"><b>${esc(i.name)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}
-        <small class="sub">${i.offered ? '🤝 angeboten · ' : ''}${i.opened ? 'angebrochen · ' : ''}${PLACES[i.place]}</small></span>
+      <span class="item-text"><b>${nm(i)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}
+        <small class="sub">${i.offered ? `🤝 ${t('angeboten')} · ` : ''}${i.opened ? `${t('angebrochen')} · ` : ''}${place(i.place)}</small></span>
       ${badge(i)}
     </button>
-    <button class="done-btn" data-action="used" data-id="${i.id}" aria-label="${esc(i.name)} aufgebraucht">✓</button>
+    <button class="done-btn" data-action="used" data-id="${i.id}" aria-label="${esc(t('{name} aufgebraucht', { name: pname(i) }))}">✓</button>
   </li>`;
 }
 
@@ -166,30 +175,30 @@ function itemSheet(id) {
   const s = status(i);
   const p = i.pid && byId[i.pid];
   let hint = '';
-  if (s.d < 0 && s.vd) hint = '<p class="hint danger">Verbrauchsdatum überschritten – bitte nicht mehr essen.</p>';
-  else if (s.d < 0) hint = '<p class="hint">Mindesthaltbarkeit heißt nicht „schlecht ab“. Ansehen, riechen, probieren – oft ist es noch gut.</p>';
-  else if (!i.dateSet) hint = '<p class="hint muted">Datum geschätzt. Steht etwas anderes auf der Packung? Einfach unten ändern.</p>';
+  if (s.d < 0 && s.vd) hint = `<p class="hint danger">${t('Verbrauchsdatum überschritten – bitte nicht mehr essen.')}</p>`;
+  else if (s.d < 0) hint = `<p class="hint">${t('Mindesthaltbarkeit heißt nicht „schlecht ab“. Ansehen, riechen, probieren – oft ist es noch gut.')}</p>`;
+  else if (!i.dateSet) hint = `<p class="hint muted">${t('Datum geschätzt. Steht etwas anderes auf der Packung? Einfach unten ändern.')}</p>`;
   openSheet(`
-    <div class="sheet-head"><span class="emoji xl">${i.emoji}</span><div><h2 id="sheet-title">${esc(i.name)}${i.qty > 1 ? ` × ${i.qty}` : ''}</h2>
-      <p>${badge(i)} <span class="muted">bis ${dateLabel(i.expires)}</span></p></div></div>
+    <div class="sheet-head"><span class="emoji xl">${i.emoji}</span><div><h2 id="sheet-title">${nm(i)}${i.qty > 1 ? ` × ${i.qty}` : ''}</h2>
+      <p>${badge(i)} <span class="muted">${t('bis {date}', { date: dateLabel(i.expires) })}</span></p></div></div>
     ${hint}
     ${s.d <= 3 ? rescueBox(i) : ''}
     <div class="actions">
-      <button class="act good" data-action="consume" data-id="${i.id}" data-how="used">✓<span>Aufgebraucht</span></button>
-      ${i.qty > 1 ? `<button class="act" data-action="consume" data-id="${i.id}" data-how="used" data-qty="1">½<span>1 Stück weg</span></button>` : ''}
-      ${!i.opened ? `<button class="act" data-action="open" data-id="${i.id}">🔓<span>Angebrochen</span></button>` : ''}
-      ${i.place !== 'tk' ? `<button class="act" data-action="freeze" data-id="${i.id}">❄️<span>Einfrieren</span></button>` : ''}
-      <button class="act" data-action="offer" data-id="${i.id}">🤝<span>${i.offered ? 'Nicht mehr anbieten' : 'Verschenken'}</span></button>
-      <button class="act bad" data-action="consume" data-id="${i.id}" data-how="wasted">🗑<span>Weggeworfen</span></button>
+      <button class="act good" data-action="consume" data-id="${i.id}" data-how="used">✓<span>${t('Aufgebraucht')}</span></button>
+      ${i.qty > 1 ? `<button class="act" data-action="consume" data-id="${i.id}" data-how="used" data-qty="1">½<span>${t('1 Stück weg')}</span></button>` : ''}
+      ${!i.opened ? `<button class="act" data-action="open" data-id="${i.id}">🔓<span>${t('Angebrochen')}</span></button>` : ''}
+      ${i.place !== 'tk' ? `<button class="act" data-action="freeze" data-id="${i.id}">❄️<span>${t('Einfrieren')}</span></button>` : ''}
+      <button class="act" data-action="offer" data-id="${i.id}">🤝<span>${t(i.offered ? 'Nicht mehr anbieten' : 'Verschenken')}</span></button>
+      <button class="act bad" data-action="consume" data-id="${i.id}" data-how="wasted">🗑<span>${t('Weggeworfen')}</span></button>
     </div>
     <div class="form">
-      <label>Gut bis <input type="date" value="${i.expires}" data-change="expires" data-id="${i.id}"></label>
-      <label>Ort <select data-change="place" data-id="${i.id}">${Object.entries(PLACES).map(([k, v]) => `<option value="${k}" ${k === i.place ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-      <label>Menge <input type="number" min="1" max="99" value="${i.qty}" data-change="qty" data-id="${i.id}"></label>
-      <label>Preis (Stück) <input type="number" min="0" step="0.01" value="${i.price ?? ''}" data-change="price" data-id="${i.id}"></label>
+      <label>${t('Gut bis')} <input type="date" value="${i.expires}" data-change="expires" data-id="${i.id}"></label>
+      <label>${t('Ort')} <select data-change="place" data-id="${i.id}">${Object.keys(PLACES).map((k) => `<option value="${k}" ${k === i.place ? 'selected' : ''}>${place(k)}</option>`).join('')}</select></label>
+      <label>${t('Menge')} <input type="number" min="1" max="99" value="${i.qty}" data-change="qty" data-id="${i.id}"></label>
+      <label>${t('Preis (Stück)')} <input type="number" min="0" step="0.01" value="${i.price ?? ''}" data-change="price" data-id="${i.id}"></label>
     </div>
-    <p class="muted small">Gekauft ${dateLabel(i.bought)}${i.raw ? ` · auf dem Bon: „${esc(i.raw)}“` : ''}${p ? ` · ${CATS[p.cat].name}` : ''}</p>
-    <button class="link danger" data-action="consume" data-id="${i.id}" data-how="removed">Falsch eingetragen – löschen</button>
+    <p class="muted small">${t('Gekauft {date}', { date: dateLabel(i.bought) })}${i.raw ? ` · ${t('auf dem Bon: „{raw}“', { raw: esc(i.raw) })}` : ''}${p ? ` · ${t(CATS[p.cat].name)}` : ''}</p>
+    <button class="link danger" data-action="consume" data-id="${i.id}" data-how="removed">${t('Falsch eingetragen – löschen')}</button>
   `);
 }
 
@@ -200,27 +209,27 @@ function rescueBox(i, compact = false) {
   if (!tips.length) return '';
   const vdOver = status(i).d < 0 && status(i).vd;
   return `<div class="rescue ${compact ? 'compact' : ''}">
-    ${compact ? '' : '<b class="rescue-head">💡 So rettest du es</b>'}
-    <ul>${tips.map((t) => `<li><span>${t.icon}</span>${esc(t.text)}</li>`).join('')}</ul>
-    ${!vdOver && aiChefReady() ? `<button class="btn small" data-action="rescue-chef" data-id="${i.id}">👨‍🍳 Rezept mit ${esc(i.name)}</button>` : ''}
+    ${compact ? '' : `<b class="rescue-head">💡 ${t('So rettest du es')}</b>`}
+    <ul>${tips.map((x) => `<li><span>${x.icon}</span>${esc(x.text)}</li>`).join('')}</ul>
+    ${!vdOver && aiChefReady() ? `<button class="btn small" data-action="rescue-chef" data-id="${i.id}">👨‍🍳 ${t('Rezept mit {name}', { name: nm(i) })}</button>` : ''}
   </div>`;
 }
 
 function rescueSheet() {
   const items = store.items().filter((i) => !i.offered && daysLeft(i) <= 2 && !(daysLeft(i) < 0 && status(i).vd));
-  if (!items.length) return toast('Gerade muss nichts gerettet werden 🌱');
+  if (!items.length) return toast(t('Gerade muss nichts gerettet werden 🌱'));
   lastSuggestions = suggest(store.items().filter((i) => !i.offered), { vegOnly: store.state.settings.veg, limit: 5 });
   const n = lastSuggestions.findIndex((r) => r.urgent.length);
   const recipe = lastSuggestions[n];
   openSheet(`
-    <h2 id="sheet-title">Retten statt wegwerfen</h2>
-    <p class="muted small">${items.length === 1 ? 'Diese Sache muss' : `Diese ${items.length} Sachen müssen`} bald weg. So wird noch was draus:</p>
+    <h2 id="sheet-title">${t('Retten statt wegwerfen')}</h2>
+    <p class="muted small">${tn(items.length, 'Diese Sache muss bald weg. So wird noch was draus:', 'Diese {n} Sachen müssen bald weg. So wird noch was draus:')}</p>
     ${recipe ? `<button class="card recipe rescue-recipe" data-action="recipe" data-n="${n}"><span class="emoji xl">${recipe.emoji}</span>
-      <span class="recipe-text"><b>${esc(recipe.title)}</b><small>${recipe.time} Min. · rettet ${recipe.urgent.map((i) => esc(i.name)).join(', ')}</small></span></button>` : ''}
+      <span class="recipe-text"><b>${esc(recipe.title)}</b><small>${t('{n} Min.', { n: recipe.time })} · ${t('rettet {names}', { names: recipe.urgent.map(nm).join(', ') })}</small></span></button>` : ''}
     <ul class="rescue-list">${items.map((i) => `<li class="card">
-      <div class="rescue-item"><span class="emoji">${i.emoji}</span><b>${esc(i.name)}</b>${badge(i)}</div>
+      <div class="rescue-item"><span class="emoji">${i.emoji}</span><b>${nm(i)}</b>${badge(i)}</div>
       ${rescueBox(i, true)}</li>`).join('')}</ul>
-    <a class="btn block" href="#/teilen" data-action="close-go">🤝 Lieber verschenken</a>
+    <a class="btn block" href="#/teilen" data-action="close-go">🤝 ${t('Lieber verschenken')}</a>
   `);
 }
 
@@ -229,16 +238,16 @@ const QUICK = ['milch', 'eier', 'brot', 'bananen', 'tomaten', 'joghurt', 'kaese'
 
 function addSheet(voice) {
   openSheet(`
-    <h2 id="sheet-title">Was ist neu im Vorrat?</h2>
-    <p class="muted small">Mehrere Sachen mit Komma trennen – z. B. „Milch, 6 Eier, Brot“. Ablaufdaten schätzt Restlos.</p>
+    <h2 id="sheet-title">${t('Was ist neu im Vorrat?')}</h2>
+    <p class="muted small">${t('Mehrere Sachen mit Komma trennen – z. B. „Milch, 6 Eier, Brot“. Ablaufdaten schätzt Restlos.')}</p>
     <div class="input-row">
-      <input id="add-text" type="text" autocomplete="off" enterkeyhint="done" placeholder="Milch, 6 Eier, Brot …" aria-label="Lebensmittel">
-      <button class="icon-btn mic" data-action="listen" aria-label="Sprechen">🎤</button>
+      <input id="add-text" type="text" autocomplete="off" enterkeyhint="done" placeholder="${esc(t('Milch, 6 Eier, Brot …'))}" aria-label="${t('Lebensmittel')}">
+      <button class="icon-btn mic" data-action="listen" aria-label="${t('Sprechen')}">🎤</button>
     </div>
     <div id="add-suggest" class="chips"></div>
-    <div class="chips wrap">${QUICK.map((id) => `<button class="chip" data-action="quick-add" data-name="${byId[id].name}">${byId[id].emoji} ${byId[id].name}</button>`).join('')}</div>
+    <div class="chips wrap">${QUICK.map((id) => `<button class="chip" data-action="quick-add" data-name="${esc(productName(id))}">${byId[id].emoji} ${esc(productName(id))}</button>`).join('')}</div>
     <ul id="add-preview" class="list compact"></ul>
-    <button class="btn primary block" data-action="add-confirm" disabled>Hinzufügen</button>
+    <button class="btn primary block" data-action="add-confirm" disabled>${t('Hinzufügen')}</button>
   `, () => {
     const input = $('#add-text');
     input.addEventListener('input', updateAddPreview);
@@ -255,20 +264,20 @@ function updateAddPreview() {
   const input = $('#add-text');
   const items = addPreviewItems();
   $('#add-preview').innerHTML = items.map((i) => `<li class="item"><span class="emoji">${i.emoji}</span>
-    <span class="item-text"><b>${esc(i.name)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}<small class="sub">${i.pid ? `hält ca. bis ${dateLabel(i.expires)}` : 'unbekannt – ca. 1 Woche'} · ${PLACES[i.place]}</small></span></li>`).join('');
+    <span class="item-text"><b>${nm(i)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}<small class="sub">${i.pid ? t('hält ca. bis {date}', { date: dateLabel(i.expires) }) : t('unbekannt – ca. 1 Woche')} · ${place(i.place)}</small></span></li>`).join('');
   $('[data-action="add-confirm"]').disabled = !items.length;
-  $('[data-action="add-confirm"]').textContent = items.length > 1 ? `${items.length} Sachen hinzufügen` : 'Hinzufügen';
+  $('[data-action="add-confirm"]').textContent = items.length > 1 ? t('{n} Sachen hinzufügen', { n: items.length }) : t('Hinzufügen');
   // Vorschläge zum letzten angefangenen Wort
-  const last = input.value.split(/,|\bund\b/).pop().trim().replace(/^\d+\s*/, '');
-  const hits = last.length >= 2 ? searchProducts(last, 4).filter((p) => p.name.toLowerCase() !== last.toLowerCase()) : [];
-  $('#add-suggest').innerHTML = hits.map((p) => `<button class="chip" data-action="complete" data-name="${p.name}">${p.emoji} ${p.name}</button>`).join('');
+  const last = input.value.split(/,|،|\bund\b|\band\b/).pop().trim().replace(/^\d+\s*/, '');
+  const hits = last.length >= 2 ? searchProducts(last, 4).filter((p) => productName(p.id).toLowerCase() !== last.toLowerCase()) : [];
+  $('#add-suggest').innerHTML = hits.map((p) => `<button class="chip" data-action="complete" data-name="${esc(productName(p.id))}">${p.emoji} ${esc(productName(p.id))}</button>`).join('');
 }
 
 function listen(input = $('#add-text'), onUpdate = updateAddPreview, mic = $('.mic')) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return toast('Spracheingabe kann dieser Browser nicht – nutze das Mikrofon der Tastatur.');
+  if (!SR) return toast(t('Spracheingabe kann dieser Browser nicht – nutze das Mikrofon der Tastatur.'));
   const rec = new SR();
-  rec.lang = 'de-DE';
+  rec.lang = locale().split('-u-')[0];
   rec.interimResults = true;
   const before = input.value ? `${input.value.replace(/,\s*$/, '')}, ` : '';
   mic?.classList.add('on');
@@ -277,7 +286,7 @@ function listen(input = $('#add-text'), onUpdate = updateAddPreview, mic = $('.m
     onUpdate();
   };
   rec.onend = () => mic?.classList.remove('on');
-  rec.onerror = (e) => { mic?.classList.remove('on'); if (e.error === 'not-allowed') toast('Bitte Mikrofon erlauben.'); };
+  rec.onerror = (e) => { mic?.classList.remove('on'); if (e.error === 'not-allowed') toast(t('Bitte Mikrofon erlauben.')); };
   rec.start();
 }
 
@@ -303,15 +312,15 @@ async function startScan(more = false) {
 function scanSheet(problem) {
   const ai = aiReady();
   openSheet(`
-    <h2 id="sheet-title">Kassenbon scannen</h2>
+    <h2 id="sheet-title">${t('Kassenbon scannen')}</h2>
     ${problem ? `<p class="scan-check warn">${esc(problem)}</p>` : ''}
-    <p class="muted">Bon glatt hinlegen, gut beleuchten, ganz aufs Foto. Bei langen Bons einfach mehrere Fotos auswählen. ${ai ? 'Die KI liest jede Zeile – das Foto geht dafür an Google Gemini.' : 'Die Erkennung läuft auf deinem Gerät – das Foto wird nicht hochgeladen.'}</p>
-    ${!problem && cameraSupported() ? '<button class="btn primary block" data-action="scan">📷 Kamera öffnen</button>' : ''}
-    <button class="btn ${problem || !cameraSupported() ? 'primary' : ''} block" data-action="photo">🖼️ Foto aufnehmen oder auswählen</button>
+    <p class="muted">${t('Bon glatt hinlegen, gut beleuchten, ganz aufs Foto. Bei langen Bons einfach mehrere Fotos auswählen.')} ${t(ai ? 'Die KI liest jede Zeile – das Foto geht dafür an Google Gemini.' : 'Die Erkennung läuft auf deinem Gerät – das Foto wird nicht hochgeladen.')}</p>
+    ${!problem && cameraSupported() ? `<button class="btn primary block" data-action="scan">📷 ${t('Kamera öffnen')}</button>` : ''}
+    <button class="btn ${problem || !cameraSupported() ? 'primary' : ''} block" data-action="photo">🖼️ ${t('Foto aufnehmen oder auswählen')}</button>
     <details class="paste">
-      <summary>Digitalen Kassenbon einfügen (eBon aus REWE-, Lidl-Plus-App …)</summary>
-      <textarea id="bon-text" rows="7" placeholder="Bon-Text hier einfügen …"></textarea>
-      <button class="btn block" data-action="bon-text">Bon auswerten</button>
+      <summary>${t('Digitalen Kassenbon einfügen (eBon aus REWE-, Lidl-Plus-App …)')}</summary>
+      <textarea id="bon-text" rows="7" placeholder="${esc(t('Bon-Text hier einfügen …'))}"></textarea>
+      <button class="btn block" data-action="bon-text">${t('Bon auswerten')}</button>
     </details>
   `);
 }
@@ -323,8 +332,8 @@ const aiReady = () => {
 
 async function handlePhotos(files) {
   const n = files.length;
-  openSheet(`<h2 id="sheet-title">${n > 1 ? `${n} Fotos werden gelesen …` : 'Bon wird gelesen …'}</h2>
-    <div class="progress"><div id="bar"></div></div><p id="progress-text" class="muted center">Einen Moment …</p>`);
+  openSheet(`<h2 id="sheet-title">${n > 1 ? t('{n} Fotos werden gelesen …', { n }) : t('Bon wird gelesen …')}</h2>
+    <div class="progress"><div id="bar"></div></div><p id="progress-text" class="muted center">${t('Einen Moment …')}</p>`);
   const step = (p, msg) => {
     $('#bar') && ($('#bar').style.width = `${Math.round(p * 100)}%`);
     $('#progress-text') && ($('#progress-text').textContent = msg);
@@ -332,12 +341,12 @@ async function handlePhotos(files) {
   // Mit KI (Gemini bzw. Claude in der Vorschau) – viel genauer. Klappt das nicht, liest das Gerät selbst.
   if (aiReady()) {
     $('#bar')?.classList.add('busy');
-    step(0.4, 'KI liest jede Zeile und zählt nach …');
+    step(0.4, t('KI liest jede Zeile und zählt nach …'));
     try {
       const { readReceiptAI } = await import('./receiptai.js');
       return reviewReceipt(await readReceiptAI(files, aiConn()));
     } catch {
-      toast('KI gerade nicht erreichbar – das Gerät liest den Bon selbst');
+      toast(t('KI gerade nicht erreichbar – das Gerät liest den Bon selbst'));
       $('#bar')?.classList.remove('busy');
     }
   }
@@ -345,9 +354,9 @@ async function handlePhotos(files) {
     const { recognize } = await import('./ocr.js');
     reviewReceipt(fromText(await recognize(files, step)));
   } catch (e) {
-    openSheet(`<h2 id="sheet-title">Das hat nicht geklappt</h2><p>${esc(e.message)}</p>
-      <button class="btn primary block" data-action="scan">Nochmal scannen</button>
-      <button class="btn block" data-action="add">Lieber eintippen</button>`);
+    openSheet(`<h2 id="sheet-title">${t('Das hat nicht geklappt')}</h2><p>${esc(e.message)}</p>
+      <button class="btn primary block" data-action="scan">${t('Nochmal scannen')}</button>
+      <button class="btn block" data-action="add">${t('Lieber eintippen')}</button>`);
   }
 }
 
@@ -376,11 +385,11 @@ function reviewReceipt(result) {
   });
   scan = { result, rows, bought };
   if (!rows.some((r) => r.kind === 'essen')) {
-    return openSheet(`<h2 id="sheet-title">Keine Lebensmittel gefunden</h2>
-      <p class="muted">${rows.length ? `Auf dem Bon stehen nur Sachen, die nicht in den Vorrat gehören (${rows.map((r) => esc(r.name)).join(', ')}).` : 'Der Bon war schwer zu lesen. Tipp: flach hinlegen, ohne Schatten, näher ran, Lampe an. Oder einfach eintippen.'}</p>
-      <button class="btn primary block" data-action="scan">📷 Nochmal scannen</button>
-      <button class="btn block" data-action="add">Eintippen</button>
-      ${result.text ? `<details class="paste"><summary>Erkannter Text</summary><pre>${esc(result.text)}</pre></details>` : ''}`);
+    return openSheet(`<h2 id="sheet-title">${t('Keine Lebensmittel gefunden')}</h2>
+      <p class="muted">${rows.length ? t('Auf dem Bon stehen nur Sachen, die nicht in den Vorrat gehören ({names}).', { names: rows.map((r) => esc(r.name)).join(', ') }) : t('Der Bon war schwer zu lesen. Tipp: flach hinlegen, ohne Schatten, näher ran, Lampe an. Oder einfach eintippen.')}</p>
+      <button class="btn primary block" data-action="scan">📷 ${t('Nochmal scannen')}</button>
+      <button class="btn block" data-action="add">${t('Eintippen')}</button>
+      ${result.text ? `<details class="paste"><summary>${t('Erkannter Text')}</summary><pre>${esc(result.text)}</pre></details>` : ''}`);
   }
   reviewSheet();
 }
@@ -390,12 +399,12 @@ function scanCheck() {
   const { result, rows } = scan;
   if (result.type === 'produkte') return { html: '', more: false };
   const c = checkTotal({ total: result.total, count: result.count, items: rows });
-  const more = shots.length < MAX_SHOTS && cameraSupported() ? '<button class="btn small" data-action="scan-more">📷 Weiteres Foto aufnehmen</button>' : '';
-  const count = c.countOk === false ? ` Laut Bon ${result.count} Artikel, gezählt ${c.pieces} – die Stückzahl kannst du unten mit − und + anpassen.` : '';
-  if (c.ok) return { html: `<div class="scan-check ok">✓ <b>Alles erfasst.</b> Die Summe ${euro(c.sum)} stimmt mit dem Bon überein.${count}</div>`, more: false };
-  if (c.diff > 0) return { html: `<div class="scan-check warn"><b>Es fehlen ${euro(c.diff)}.</b> Auf dem Bon stehen ${euro(c.total)}, erkannt sind ${euro(c.sum)}. Vielleicht ist ein Stück vom Bon nicht auf dem Foto.${count} ${more}</div>`, more: !!more };
-  if (c.diff < 0) return { html: `<div class="scan-check warn"><b>${euro(-c.diff)} zu viel erkannt.</b> Auf dem Bon stehen ${euro(c.total)}. Ist etwas doppelt drin? Dann einfach den Haken wegnehmen.${count}</div>`, more: false };
-  return { html: `<div class="scan-check">Die Endsumme war nicht lesbar – kurz prüfen, ob alles da ist (erkannt: ${euro(c.sum)}).${count} ${more}</div>`, more: !!more };
+  const more = shots.length < MAX_SHOTS && cameraSupported() ? `<button class="btn small" data-action="scan-more">📷 ${t('Weiteres Foto aufnehmen')}</button>` : '';
+  const count = c.countOk === false ? ` ${t('Laut Bon {count} Artikel, gezählt {pieces} – die Stückzahl kannst du unten mit − und + anpassen.', { count: result.count, pieces: c.pieces })}` : '';
+  if (c.ok) return { html: `<div class="scan-check ok">✓ <b>${t('Alles erfasst.')}</b> ${t('Die Summe {sum} stimmt mit dem Bon überein.', { sum: euro(c.sum) })}${count}</div>`, more: false };
+  if (c.diff > 0) return { html: `<div class="scan-check warn"><b>${t('Es fehlen {diff}.', { diff: euro(c.diff) })}</b> ${t('Auf dem Bon stehen {total}, erkannt sind {sum}. Vielleicht ist ein Stück vom Bon nicht auf dem Foto.', { total: euro(c.total), sum: euro(c.sum) })}${count} ${more}</div>`, more: !!more };
+  if (c.diff < 0) return { html: `<div class="scan-check warn"><b>${t('{diff} zu viel erkannt.', { diff: euro(-c.diff) })}</b> ${t('Auf dem Bon stehen {total}. Ist etwas doppelt drin? Dann einfach den Haken wegnehmen.', { total: euro(c.total) })}${count}</div>`, more: false };
+  return { html: `<div class="scan-check">${t('Die Endsumme war nicht lesbar – kurz prüfen, ob alles da ist (erkannt: {sum}).', { sum: euro(c.sum) })}${count} ${more}</div>`, more: !!more };
 }
 
 function reviewSheet() {
@@ -408,24 +417,24 @@ function reviewSheet() {
   const top = sheet.scrollTop;
   const check = scanCheck();
   openSheet(`
-    <h2 id="sheet-title">${products ? `${food.length} ${food.length === 1 ? 'Produkt' : 'Produkte'} gezählt` : `${rows.length} Artikel erkannt`}</h2>
-    <p class="muted small">${result.store ? `${esc(result.store)} · ` : ''}${dateLabel(bought)} · ${food.reduce((s, [r]) => s + r.qty, 0)} Stück Lebensmittel${products ? '' : ` · ${euro(rows.reduce((s, r) => s + r.line, 0))}`}</p>
+    <h2 id="sheet-title">${products ? tn(food.length, '1 Produkt gezählt', '{n} Produkte gezählt') : t('{n} Artikel erkannt', { n: rows.length })}</h2>
+    <p class="muted small">${result.store ? `${esc(result.store)} · ` : ''}${dateLabel(bought)} · ${t('{n} Stück Lebensmittel', { n: food.reduce((s, [r]) => s + r.qty, 0) })}${products ? '' : ` · ${euro(rows.reduce((s, r) => s + r.line, 0))}`}</p>
     ${check.html}
-    <h3 class="group">Kommt in den Vorrat</h3>
+    <h3 class="group">${t('Kommt in den Vorrat')}</h3>
     <ul class="list compact checks scan-list">${food.map(([r, n]) => `<li class="item">
-      <input type="checkbox" data-pick="${n}" aria-label="${esc(r.name)} übernehmen" ${r.checked ? 'checked' : ''}>
+      <input type="checkbox" data-pick="${n}" aria-label="${esc(t('{name} übernehmen', { name: r.name }))}" ${r.checked ? 'checked' : ''}>
       <span class="emoji">${r.emoji}</span>
-      <span class="item-text"><input class="name-edit" data-name="${n}" value="${esc(r.name)}" aria-label="Name"><small class="sub">bis ca. ${dateLabel(r.expires)}${r.raw && r.raw !== r.name ? ` · „${esc(r.raw)}“` : ''}</small></span>
-      <span class="stepper"><button data-action="bon-qty" data-n="${n}" data-d="-1" aria-label="weniger" ${r.qty <= 1 ? 'disabled' : ''}>−</button><b aria-label="Anzahl">${r.qty}</b><button data-action="bon-qty" data-n="${n}" data-d="1" aria-label="mehr">+</button></span>
+      <span class="item-text"><input class="name-edit" data-name="${n}" value="${esc(r.name)}" aria-label="${t('Name')}"><small class="sub">${t('bis ca. {date}', { date: dateLabel(r.expires) })}${r.raw && r.raw !== r.name ? ` · „${esc(r.raw)}“` : ''}</small></span>
+      <span class="stepper"><button data-action="bon-qty" data-n="${n}" data-d="-1" aria-label="${t('weniger')}" ${r.qty <= 1 ? 'disabled' : ''}>−</button><b aria-label="${t('Anzahl')}">${r.qty}</b><button data-action="bon-qty" data-n="${n}" data-d="1" aria-label="${t('mehr')}">+</button></span>
       ${products ? '' : `<span class="price">${euro(r.line)}</span>`}</li>`).join('')}</ul>
-    ${other.length ? `<h3 class="group">Auch auf dem Bon</h3>
+    ${other.length ? `<h3 class="group">${t('Auch auf dem Bon')}</h3>
     <ul class="list compact scan-list other">${other.map((r) => `<li class="item"><span class="emoji">${r.emoji}</span>
-      <span class="item-text"><b>${esc(r.name)}</b>${r.qty > 1 ? ` <small>× ${r.qty}</small>` : ''}<small class="sub">${r.kind === 'pfand' ? (r.raw && r.raw !== r.name ? `„${esc(r.raw)}“` : 'Pfand') : 'kein Lebensmittel – kommt nicht in den Vorrat'}</small></span>
+      <span class="item-text"><b>${esc(r.name)}</b>${r.qty > 1 ? ` <small>× ${r.qty}</small>` : ''}<small class="sub">${r.kind === 'pfand' ? (r.raw && r.raw !== r.name ? `„${esc(r.raw)}“` : t('Pfand')) : t('kein Lebensmittel – kommt nicht in den Vorrat')}</small></span>
       <span class="price">${euro(r.line)}</span></li>`).join('')}</ul>` : ''}
-    <button class="btn primary block" data-action="bon-confirm" ${picked.length ? '' : 'disabled'}>${picked.length ? `${pieces} ${pieces === 1 ? 'Sache' : 'Sachen'} in den Vorrat` : 'Nichts ausgewählt'}</button>
-    ${!check.more && shots.length && cameraSupported() && shots.length < MAX_SHOTS ? '<button class="btn block" data-action="scan-more">📷 Weiteres Foto vom selben Bon</button>' : ''}
-    <button class="btn ghost block" data-action="add">Fehlendes eintippen</button>
-    ${result.text ? `<details class="paste"><summary>Erkannten Text ansehen</summary><pre>${esc(result.text)}</pre></details>` : ''}
+    <button class="btn primary block" data-action="bon-confirm" ${picked.length ? '' : 'disabled'}>${picked.length ? tn(pieces, '1 Sache in den Vorrat', '{n} Sachen in den Vorrat') : t('Nichts ausgewählt')}</button>
+    ${!check.more && shots.length && cameraSupported() && shots.length < MAX_SHOTS ? `<button class="btn block" data-action="scan-more">📷 ${t('Weiteres Foto vom selben Bon')}</button>` : ''}
+    <button class="btn ghost block" data-action="add">${t('Fehlendes eintippen')}</button>
+    ${result.text ? `<details class="paste"><summary>${t('Erkannten Text ansehen')}</summary><pre>${esc(result.text)}</pre></details>` : ''}
   `);
   sheet.scrollTop = top;
 }
@@ -455,7 +464,7 @@ function confirmScan() {
   shots = [];
   closeSheet();
   location.hash = '#/vorrat';
-  toast(`${added.length} ${added.length === 1 ? 'Sache' : 'Sachen'} im Vorrat`, () => added.forEach((i) => store.consume(i.id, 'removed')));
+  toast(tn(added.length, '1 Sache im Vorrat', '{n} Sachen im Vorrat'), () => added.forEach((i) => store.consume(i.id, 'removed')));
 }
 
 // ---------- Rezepte ----------
@@ -465,21 +474,21 @@ function renderRezepte() {
   const veg = store.state.settings.veg;
   lastSuggestions = suggest(items.filter((i) => !i.offered), { vegOnly: veg, limit: 10 });
   view.innerHTML = `
-    <section class="hero"><h1>Reste-Rezepte</h1><p>Sortiert nach dem, was zuerst weg muss.</p></section>
+    <section class="hero"><h1>${t('Reste-Rezepte')}</h1><p>${t('Sortiert nach dem, was zuerst weg muss.')}</p></section>
     <a class="card chef-entry" href="#/koch"><span class="emoji xl">👨‍🍳</span>
-      <span><b>KI-Koch fragen</b><small>Schreib, was du hast – ein Profikoch macht daraus ein Rezept, das auch Anfängern gelingt.</small></span></a>
+      <span><b>${t('KI-Koch fragen')}</b><small>${t('Schreib, was du hast – ein Profikoch macht daraus ein Rezept, das auch Anfängern gelingt.')}</small></span></a>
     ${chefIdeasHtml(items)}
-    <div class="chips"><button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 Nur vegetarisch</button></div>
+    <div class="chips"><button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 ${t('Nur vegetarisch')}</button></div>
     ${lastSuggestions.length ? `<div class="grid">${lastSuggestions.map((r, n) => `
       <button class="card recipe" data-action="recipe" data-n="${n}">
         <span class="emoji xl">${r.emoji}</span>
         <span class="recipe-text"><b>${esc(r.title)}</b>
-          <small>${r.time} Min. · nutzt ${r.uses.length} ${r.uses.length === 1 ? 'Sache' : 'Sachen'} aus dem Vorrat</small>
-          ${r.urgent.length ? `<small class="save">🌱 rettet ${r.urgent.map((i) => esc(i.name)).join(', ')}</small>` : ''}
-          ${r.missing.length ? `<small class="miss">fehlt: ${r.missing.map(esc).join(', ')}</small>` : ''}</span>
+          <small>${t('{n} Min.', { n: r.time })} · ${tn(r.uses.length, 'nutzt 1 Sache aus dem Vorrat', 'nutzt {n} Sachen aus dem Vorrat')}</small>
+          ${r.urgent.length ? `<small class="save">🌱 ${t('rettet {names}', { names: r.urgent.map(nm).join(', ') })}</small>` : ''}
+          ${r.missing.length ? `<small class="miss">${t('fehlt: {names}', { names: r.missing.map(esc).join(', ') })}</small>` : ''}</span>
       </button>`).join('')}</div>` : `
-      <section class="empty"><div class="big">🍳</div><p>Sobald etwas im Vorrat ist, schlägt Restlos hier Gerichte vor – zuerst die, die Ablaufendes aufbrauchen.</p>
-      <button class="btn primary" data-action="scan">📷 Kassenbon scannen</button></section>`}
+      <section class="empty"><div class="big">🍳</div><p>${t('Sobald etwas im Vorrat ist, schlägt Restlos hier Gerichte vor – zuerst die, die Ablaufendes aufbrauchen.')}</p>
+      <button class="btn primary" data-action="scan">📷 ${t('Kassenbon scannen')}</button></section>`}
   `;
 }
 
@@ -487,15 +496,15 @@ function recipeSheet(n) {
   const r = lastSuggestions[n];
   if (!r) return;
   openSheet(`
-    <div class="sheet-head"><span class="emoji xl">${r.emoji}</span><div><h2 id="sheet-title">${esc(r.title)}</h2><p class="muted">${r.time} Minuten${r.veg ? ' · vegetarisch' : ''}</p></div></div>
-    <h3>Aus deinem Vorrat</h3>
+    <div class="sheet-head"><span class="emoji xl">${r.emoji}</span><div><h2 id="sheet-title">${esc(r.title)}</h2><p class="muted">${t('{n} Minuten', { n: r.time })}${r.veg ? ` · ${t('vegetarisch')}` : ''}</p></div></div>
+    <h3>${t('Aus deinem Vorrat')}</h3>
     <ul class="list compact checks">${r.uses.map((i) => `<li class="item"><label><input type="checkbox" data-use="${i.id}" checked>
-      <span class="emoji">${i.emoji}</span><span class="item-text"><b>${esc(i.name)}</b></span>${badge(i)}</label></li>`).join('')}</ul>
-    ${r.missing.length ? `<p>Fehlt noch: <b>${r.missing.map(esc).join(', ')}</b> <button class="link" data-action="to-list" data-names="${esc(r.missing.join('|'))}">→ auf die Einkaufsliste</button></p>` : ''}
-    <p class="muted small">Dazu aus dem Schrank: Salz, Pfeffer, Öl, ggf. Mehl, Zucker, Gewürze.</p>
-    <h3>So geht's</h3>
+      <span class="emoji">${i.emoji}</span><span class="item-text"><b>${nm(i)}</b></span>${badge(i)}</label></li>`).join('')}</ul>
+    ${r.missing.length ? `<p>${t('Fehlt noch:')} <b>${r.missing.map(esc).join(', ')}</b> <button class="link" data-action="to-list" data-names="${esc(r.missing.join('|'))}">→ ${t('auf die Einkaufsliste')}</button></p>` : ''}
+    <p class="muted small">${t('Dazu aus dem Schrank: Salz, Pfeffer, Öl, ggf. Mehl, Zucker, Gewürze.')}</p>
+    <h3>${t("So geht's")}</h3>
     <ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-    <button class="btn primary block" data-action="cooked">Gekocht! Zutaten austragen</button>
+    <button class="btn primary block" data-action="cooked">${t('Gekocht! Zutaten austragen')}</button>
   `);
 }
 
@@ -511,7 +520,7 @@ const aiChefReady = () => { const c = aiConn(); return !!chefProvider(c.apiKey, 
 function chefIdeasHtml(items) {
   const pantry = items.filter((i) => !i.offered);
   if (!pantry.length || !aiChefReady()) return '';
-  const key = pantryKey(pantry);
+  const key = `${lang}|${pantryKey(pantry)}`;
   if (!chefIdeas.busy && chefIdeas.key !== key && (!chefIdeas.list?.length || Date.now() - (chefIdeas.at || 0) > 30 * 60e3)) {
     setTimeout(() => loadIdeas(), 0);
     chefIdeas.busy = true;
@@ -521,13 +530,13 @@ function chefIdeasHtml(items) {
     ? [0, 1, 2].map((k) => `<div class="card idea skeleton" style="--k:${k}"><span></span><span></span><span></span></div>`).join('')
     : list.map((x, n) => `<button class="card idea" data-action="idea-cook" data-n="${n}" style="--k:${n}">
         <b>${esc(x.name)}</b>
-        ${x.saves.length ? `<small class="save">🌱 rettet ${x.saves.map(esc).join(', ')}</small>` : ''}
+        ${x.saves.length ? `<small class="save">🌱 ${t('rettet {names}', { names: x.saves.map(esc).join(', ') })}</small>` : ''}
         ${x.why ? `<small>${esc(x.why)}</small>` : ''}
-        <small class="idea-meta">${x.minutes ? `⏱ ${x.minutes} Min. · ` : ''}Rezept ansehen →</small>
+        <small class="idea-meta">${x.minutes ? `⏱ ${t('{n} Min.', { n: x.minutes })} · ` : ''}${t('Rezept ansehen')} ${dir() === 'rtl' ? '←' : '→'}</small>
       </button>`).join('');
   return `<section class="ideas" aria-live="polite">
-    <div class="ideas-head"><h3 class="group">👨‍🍳 Neu vom Koch</h3>
-      ${chefIdeas.busy ? '' : `<button class="link small" data-action="ideas-more">${list.length ? 'Andere Ideen' : 'Ideen holen'}</button>`}</div>
+    <div class="ideas-head"><h3 class="group">👨‍🍳 ${t('Neu vom Koch')}</h3>
+      ${chefIdeas.busy ? '' : `<button class="link small" data-action="ideas-more">${t(list.length ? 'Andere Ideen' : 'Ideen holen')}</button>`}</div>
     ${chefIdeas.error ? `<p class="muted small">${esc(chefIdeas.error)}</p>` : ''}
     ${cards ? `<div class="idea-grid">${cards}</div>` : ''}
   </section>`;
@@ -538,14 +547,14 @@ async function loadIdeas(avoid = []) {
   if (!pantry.length) return;
   Object.assign(chefIdeas, { busy: true, error: '' });
   if (current() === 'rezepte') render();
-  const key = pantryKey(pantry);
+  const key = `${lang}|${pantryKey(pantry)}`;
   try {
     const { text } = await askChef({
       ...aiConn(),
       messages: [{ role: 'user', content: ideasMessage({ pantry: pantryForChef(pantry), veg: store.state.settings.veg, avoid }) }],
     });
     const list = parseIdeas(text);
-    if (!list.length) throw new Error('Der Koch hatte gerade keine Idee. Tipp auf „Ideen holen“.');
+    if (!list.length) throw new Error(t('Der Koch hatte gerade keine Idee. Tipp auf „Ideen holen“.'));
     Object.assign(chefIdeas, { list, key, at: Date.now() });
     try { localStorage.setItem(IDEAS_KEY, JSON.stringify({ list, key, at: chefIdeas.at })); } catch { /* egal */ }
   } catch (e) {
@@ -582,16 +591,16 @@ function renderKoch() {
   const { apiKey, server, sample } = aiConn();
   const ready = !!chefProvider(apiKey, server, sample);
   view.innerHTML = `
-    <section class="hero"><h1>👨‍🍳 Dein KI-Koch</h1><p>Schreib, was du hast – der Koch macht das Beste daraus. Auch wenn du noch nie gekocht hast.</p></section>
-    ${previewChef ? '<p class="hint">Vorschau: Hier kocht Claude über dein Claude-Konto. In der echten App kocht Gemini mit deinem Schlüssel.</p>' : ''}
+    <section class="hero"><h1>👨‍🍳 ${t('Dein KI-Koch')}</h1><p>${t('Schreib, was du hast – der Koch macht das Beste daraus. Auch wenn du noch nie gekocht hast.')}</p></section>
+    ${previewChef ? `<p class="hint">${t('Vorschau: Hier kocht Claude über dein Claude-Konto. In der echten App kocht Gemini mit deinem Schlüssel.')}</p>` : ''}
     ${ready ? '' : `
     <section class="card">
-      <b>Einmal einrichten: kostenloser Schlüssel</b>
-      <p class="small muted">Der Koch nutzt Gemini von Google – kostenlos. Auf <b>aistudio.google.com</b> mit dem Google-Konto anmelden → „Get API key“ → „Create API key“ und hier einfügen. Der Schlüssel bleibt nur auf diesem Gerät.</p>
-      <form class="input-row" data-form="ai-key"><input id="ai-key" type="password" autocomplete="off" placeholder="AIza…" aria-label="API-Schlüssel"><button class="btn primary">Speichern</button></form>
+      <b>${t('Einmal einrichten: kostenloser Schlüssel')}</b>
+      <p class="small muted">${t('Der Koch nutzt Gemini von Google – kostenlos. Auf <b>aistudio.google.com</b> mit dem Google-Konto anmelden → „Get API key“ → „Create API key“ und hier einfügen. Der Schlüssel bleibt nur auf diesem Gerät.')}</p>
+      <form class="input-row" data-form="ai-key"><input id="ai-key" type="password" autocomplete="off" placeholder="AIza…" aria-label="${t('API-Schlüssel')}"><button class="btn primary">${t('Speichern')}</button></form>
     </section>`}
     ${chat.messages.length ? chefConversation() : chefForm(ready)}
-    <p class="muted small center">Lieber ohne KI? <a href="#/rezepte">Fertige Reste-Rezepte</a></p>
+    <p class="muted small center">${t('Lieber ohne KI?')} <a href="#/rezepte">${t('Fertige Reste-Rezepte')}</a></p>
   `;
 }
 
@@ -602,18 +611,18 @@ function chefForm(ready) {
   const seg = (action, list, value, label) => list.map(([v, text]) => `<button class="chip ${value === v ? 'on' : ''}" data-action="${action}" data-v="${v}" aria-label="${label} ${text}" aria-pressed="${value === v}">${text}</button>`).join('');
   return `
     <section class="card">
-      <label class="field" for="chef-text">Was hast du da, worauf hast du Lust?</label>
+      <label class="field" for="chef-text">${t('Was hast du da, worauf hast du Lust?')}</label>
       <div class="input-row start">
-        <textarea id="chef-text" rows="3" placeholder="z. B. 2 Zucchini, halbe Packung Feta, Reis von gestern – gern was Warmes">${esc(chat.draft)}</textarea>
-        <button class="icon-btn mic" data-action="chef-listen" aria-label="Sprechen">🎤</button>
+        <textarea id="chef-text" rows="3" placeholder="${esc(t('z. B. 2 Zucchini, halbe Packung Feta, Reis von gestern – gern was Warmes'))}">${esc(chat.draft)}</textarea>
+        <button class="icon-btn mic" data-action="chef-listen" aria-label="${t('Sprechen')}">🎤</button>
       </div>
       <div class="chips wrap">
-        ${items.length ? `<button class="chip ${chat.pantry ? 'on' : ''}" data-action="chef-pantry">📦 Vorrat nutzen <small>${items.length}${urgent ? `, ${urgent} bald weg` : ''}</small></button>` : ''}
-        <button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 Vegetarisch</button>
+        ${items.length ? `<button class="chip ${chat.pantry ? 'on' : ''}" data-action="chef-pantry">📦 ${t('Vorrat nutzen')} <small>${items.length}${urgent ? `, ${t('{n} bald weg', { n: urgent })}` : ''}</small></button>` : ''}
+        <button class="chip ${veg ? 'on' : ''}" data-action="veg">🥦 ${t('Vegetarisch')}</button>
       </div>
-      <div class="chips wrap">${seg('chef-persons', [[1, '1 Person'], [2, '2 Personen'], [4, '4 Personen']], chat.persons, 'Für')}</div>
-      <div class="chips wrap">${seg('chef-minutes', [[15, '15 Min.'], [30, '30 Min.'], [60, '1 Std.'], [0, '⏱ egal']], chat.minutes, 'Zeit:')}</div>
-      <button class="btn primary block" data-action="chef-go" ${ready ? '' : 'disabled'}>👨‍🍳 Koch, leg los!</button>
+      <div class="chips wrap">${seg('chef-persons', [[1, t('1 Person')], [2, t('{n} Personen', { n: 2 })], [4, t('{n} Personen', { n: 4 })]], chat.persons, t('Für'))}</div>
+      <div class="chips wrap">${seg('chef-minutes', [[15, t('{n} Min.', { n: 15 })], [30, t('{n} Min.', { n: 30 })], [60, t('1 Std.')], [0, `⏱ ${t('egal')}`]], chat.minutes, t('Zeit:'))}</div>
+      <button class="btn primary block" data-action="chef-go" ${ready ? '' : 'disabled'}>👨‍🍳 ${t('Koch, leg los!')}</button>
     </section>`;
 }
 
@@ -626,24 +635,24 @@ function chefConversation() {
     ${chat.messages.map((m) => (m.role === 'user'
       ? `<p class="bubble">${esc(m.show || m.content)}</p>`
       : `<article class="card chef-answer">${renderMarkdown(m.content)}</article>`)).join('')}
-    ${chat.busy ? `<article class="card chef-answer" id="chef-live" aria-live="polite">${chat.live ? renderMarkdown(chat.live) : '<p class="thinking">Der Koch überlegt<span class="dots"></span></p>'}</article>
-      <button class="btn block" data-action="chef-stop">Stopp</button>` : ''}
-    ${chat.error ? `<p class="hint danger">${esc(chat.error)}</p>${last?.role === 'user' ? '<button class="btn primary block" data-action="chef-retry">Nochmal versuchen</button>' : ''}` : ''}
+    ${chat.busy ? `<article class="card chef-answer" id="chef-live" aria-live="polite">${chat.live ? renderMarkdown(chat.live) : `<p class="thinking">${t('Der Koch überlegt')}<span class="dots"></span></p>`}</article>
+      <button class="btn block" data-action="chef-stop">${t('Stopp')}</button>` : ''}
+    ${chat.error ? `<p class="hint danger">${esc(chat.error)}</p>${last?.role === 'user' ? `<button class="btn primary block" data-action="chef-retry">${t('Nochmal versuchen')}</button>` : ''}` : ''}
     ${done ? `
-      ${used.length ? '<button class="btn primary block" data-action="chef-cooked">✓ Gekocht! Zutaten austragen</button>' : ''}
-      ${ideas(answer).length ? `<div class="chips wrap idea-chips">${ideas(answer).map((x) => `<button class="chip" data-action="chef-idea" data-idea="${esc(x)}">Lieber: ${esc(x)}</button>`).join('')}</div>` : ''}` : ''}
+      ${used.length ? `<button class="btn primary block" data-action="chef-cooked">✓ ${t('Gekocht! Zutaten austragen')}</button>` : ''}
+      ${ideas(answer).length ? `<div class="chips wrap idea-chips">${ideas(answer).map((x) => `<button class="chip" data-action="chef-idea" data-idea="${esc(x)}">${t('Lieber: {name}', { name: esc(x) })}</button>`).join('')}</div>` : ''}` : ''}
     ${chat.busy ? '' : `
       <form class="input-row" data-form="chef">
-        <input id="chef-ask" type="text" autocomplete="off" enterkeyhint="send" placeholder="Frag nach: „ohne Ofen?“, „was statt Sahne?“" aria-label="Frage an den Koch">
-        <button class="icon-btn" aria-label="Senden">➤</button>
+        <input id="chef-ask" type="text" autocomplete="off" enterkeyhint="send" placeholder="${esc(t('Frag nach: „ohne Ofen?“, „was statt Sahne?“'))}" aria-label="${t('Frage an den Koch')}">
+        <button class="icon-btn flip" aria-label="${t('Senden')}">➤</button>
       </form>
-      <button class="link center-link" data-action="chef-reset">Neu anfangen</button>
-      ${done ? `<p class="muted small center">Schmeckt's? Restlos und der Koch sind kostenlos – aus Überzeugung. ${supportUrl ? supportLink('Restlos unterstützen') : '<a class="link" href="#/bilanz?mission=1">Warum?</a>'} 💚</p>` : ''}`}`;
+      <button class="link center-link" data-action="chef-reset">${t('Neu anfangen')}</button>
+      ${done ? `<p class="muted small center">${t("Schmeckt's? Restlos und der Koch sind kostenlos – aus Überzeugung.")} ${supportUrl ? supportLink(t('Restlos unterstützen')) : `<a class="link" href="#/bilanz?mission=1">${t('Warum?')}</a>`} 💚</p>` : ''}`}`;
 }
 
 async function chefSend(content, show) {
   const conn = aiConn();
-  if (!chefProvider(conn.apiKey, conn.server, conn.sample)) return toast('Erst den Schlüssel eintragen');
+  if (!chefProvider(conn.apiKey, conn.server, conn.sample)) return toast(t('Erst den Schlüssel eintragen'));
   if (chat.busy) return;
   if (content) chat.messages.push({ role: 'user', content, show });
   Object.assign(chat, { busy: true, live: '', error: '', ctrl: new AbortController() });
@@ -656,7 +665,7 @@ async function chefSend(content, show) {
       signal: chat.ctrl.signal,
       onText: (t) => { chat.live = t; const el = $('#chef-live'); if (el) el.innerHTML = renderMarkdown(t); },
     });
-    chat.messages.push({ role: 'assistant', content: stop === 'max_tokens' ? `${text}\n\n_(Die Antwort war zu lang und wurde abgeschnitten.)_` : text });
+    chat.messages.push({ role: 'assistant', content: stop === 'max_tokens' ? `${text}\n\n_(${t('Die Antwort war zu lang und wurde abgeschnitten.')})_` : text });
   } catch (e) {
     // Bei „Stopp“ bleibt das schon Geschriebene stehen.
     if (chat.ctrl?.signal.aborted && chat.live) chat.messages.push({ role: 'assistant', content: chat.live });
@@ -672,21 +681,21 @@ function chefStart() {
   chat.draft = text;
   const items = store.items().filter((i) => !i.offered);
   const usePantry = chat.pantry && items.length > 0;
-  if (!text.trim() && !usePantry) return toast('Schreib kurz, was du da hast');
+  if (!text.trim() && !usePantry) return toast(t('Schreib kurz, was du da hast'));
   const veg = store.state.settings.veg;
   const content = firstMessage({ text, pantry: usePantry ? pantryForChef(items) : '', persons: chat.persons, minutes: chat.minutes, veg });
-  const show = [text.trim(), usePantry && '📦 mein Vorrat', `${chat.persons} ${chat.persons === 1 ? 'Person' : 'Personen'}`, chat.minutes ? `${chat.minutes} Min.` : 'Zeit egal', veg && 'vegetarisch'].filter(Boolean).join(' · ');
+  const show = [text.trim(), usePantry && `📦 ${t('mein Vorrat')}`, tn(chat.persons, '1 Person', '{n} Personen'), chat.minutes ? t('{n} Min.', { n: chat.minutes }) : t('Zeit egal'), veg && t('vegetarisch')].filter(Boolean).join(' · ');
   chefSend(content, show);
 }
 
 function chefCookedSheet() {
   const used = usedItems(lastAnswer(), store.items());
   openSheet(`
-    <h2 id="sheet-title">Guten Appetit! 👨‍🍳</h2>
-    <p class="muted small">Was hast du aus dem Vorrat verbraucht? Haken weg bei allem, was noch da ist.</p>
+    <h2 id="sheet-title">${t('Guten Appetit!')} 👨‍🍳</h2>
+    <p class="muted small">${t('Was hast du aus dem Vorrat verbraucht? Haken weg bei allem, was noch da ist.')}</p>
     <ul class="list compact checks">${used.map((i) => `<li class="item"><label><input type="checkbox" data-use="${i.id}" checked>
-      <span class="emoji">${i.emoji}</span><span class="item-text"><b>${esc(i.name)}</b>${i.qty > 1 ? ` <small>× ${i.qty}, 1 wird ausgetragen</small>` : ''}</span>${badge(i)}</label></li>`).join('')}</ul>
-    <button class="btn primary block" data-action="cooked">Austragen</button>
+      <span class="emoji">${i.emoji}</span><span class="item-text"><b>${nm(i)}</b>${i.qty > 1 ? ` <small>× ${i.qty}, ${t('1 wird ausgetragen')}</small>` : ''}</span>${badge(i)}</label></li>`).join('')}</ul>
+    <button class="btn primary block" data-action="cooked">${t('Austragen')}</button>
   `);
 }
 
@@ -704,12 +713,12 @@ function renderEinkauf() {
   const onList = (n) => list.some((s) => !s.done && s.name.toLowerCase() === n.toLowerCase());
   const restock = [...new Set([...store.state.log].reverse().filter((e) => e.action === 'used').map((e) => e.name))]
     .filter((n) => !inStock(n).length && !onList(n)).slice(0, 8);
-  const basics = SHOP_BASICS.map((id) => byId[id]).filter((p) => p && !onList(p.name) && !restock.includes(p.name) && !inStock(p.name).length).slice(0, 10);
+  const basics = SHOP_BASICS.map((id) => byId[id]).filter((p) => p && !onList(productName(p.id)) && !restock.includes(p.name) && !inStock(p.name).length).slice(0, 10);
   view.innerHTML = `
-    <section class="hero"><h1>Einkaufsliste</h1><p>Restlos warnt, wenn du etwas schon zu Hause hast.</p></section>
+    <section class="hero"><h1>${t('Einkaufsliste')}</h1><p>${t('Restlos warnt, wenn du etwas schon zu Hause hast.')}</p></section>
     <form class="input-row" data-form="shop">
-      <input id="shop-text" type="text" autocomplete="off" enterkeyhint="send" placeholder="Was brauchst du?" aria-label="Neuer Eintrag">
-      <button class="icon-btn" aria-label="Hinzufügen">＋</button>
+      <input id="shop-text" type="text" autocomplete="off" enterkeyhint="send" placeholder="${esc(t('Was brauchst du?'))}" aria-label="${t('Neuer Eintrag')}">
+      <button class="icon-btn" aria-label="${t('Hinzufügen')}">＋</button>
     </form>
     <p id="shop-warn" class="hint" hidden></p>
     ${list.length ? `<ul class="list">${list.map((s) => {
@@ -717,23 +726,23 @@ function renderEinkauf() {
       return `<li class="item ${s.done ? 'checked' : ''}">
         <label class="item-main"><input type="checkbox" data-action="shop-toggle" data-id="${s.id}" ${s.done ? 'checked' : ''}>
           <span class="item-text"><b>${esc(s.name)}</b>${s.qty > 1 ? ` <small>× ${s.qty}</small>` : ''}
-          ${have.length && !s.done ? `<small class="sub warn">Noch da: ${have.map((i) => `${i.qty > 1 ? `${i.qty}× ` : ''}${esc(i.name)} (${status(i).label})`).join(', ')}</small>` : ''}</span></label>
-        <button class="done-btn ghost" data-action="shop-remove" data-id="${s.id}" aria-label="Entfernen">✕</button>
+          ${have.length && !s.done ? `<small class="sub warn">${t('Noch da:')} ${have.map((i) => `${i.qty > 1 ? `${i.qty}× ` : ''}${nm(i)} (${status(i).label})`).join(', ')}</small>` : ''}</span></label>
+        <button class="done-btn ghost" data-action="shop-remove" data-id="${s.id}" aria-label="${t('Entfernen')}">✕</button>
       </li>`;
     }).join('')}</ul>
-    ${done ? `<button class="btn primary block" data-action="shop-to-pantry">${done} abgehakte Sachen in den Vorrat</button>` : ''}`
-    : `<section class="empty small-empty"><div class="big">🛒</div><p>Noch nichts auf der Liste. Schreib oben, was du brauchst – oder tipp unten an.</p></section>`}
-    ${restock.length ? `<h3 class="group">Nachkaufen? Zuletzt aufgebraucht</h3>
-      <div class="chips wrap">${restock.map((n) => `<button class="chip" data-action="shop-quick" data-name="${esc(n)}">＋ ${esc(n)}</button>`).join('')}</div>` : ''}
-    <h3 class="group">Oft gebraucht</h3>
-    <div class="chips wrap">${basics.map((p) => `<button class="chip" data-action="shop-quick" data-name="${esc(p.name)}">${p.emoji} ${esc(p.name)}</button>`).join('')}</div>
+    ${done ? `<button class="btn primary block" data-action="shop-to-pantry">${tn(done, '1 abgehakte Sache in den Vorrat', '{n} abgehakte Sachen in den Vorrat')}</button>` : ''}`
+    : `<section class="empty small-empty"><div class="big">🛒</div><p>${t('Noch nichts auf der Liste. Schreib oben, was du brauchst – oder tipp unten an.')}</p></section>`}
+    ${restock.length ? `<h3 class="group">${t('Nachkaufen? Zuletzt aufgebraucht')}</h3>
+      <div class="chips wrap">${restock.map((n) => `<button class="chip" data-action="shop-quick" data-name="${esc(n)}">＋ ${esc(pname({ name: n, pid: matchProduct(n)?.id }))}</button>`).join('')}</div>` : ''}
+    <h3 class="group">${t('Oft gebraucht')}</h3>
+    <div class="chips wrap">${basics.map((p) => `<button class="chip" data-action="shop-quick" data-name="${esc(productName(p.id))}">${p.emoji} ${esc(productName(p.id))}</button>`).join('')}</div>
   `;
   const input = $('#shop-text');
   input.addEventListener('input', () => {
     const have = input.value.trim().length > 2 ? inStock(input.value.trim()) : [];
     const warn = $('#shop-warn');
     warn.hidden = !have.length;
-    warn.innerHTML = have.length ? `🤔 Hast du noch: ${have.map((i) => `<b>${i.qty > 1 ? `${i.qty}× ` : ''}${esc(i.name)}</b> (${status(i).label})`).join(', ')}` : '';
+    warn.innerHTML = have.length ? `🤔 ${t('Hast du noch:')} ${have.map((i) => `<b>${i.qty > 1 ? `${i.qty}× ` : ''}${nm(i)}</b> (${status(i).label})`).join(', ')}` : '';
   });
 }
 
@@ -745,21 +754,21 @@ function renderTeilen() {
   const candidates = items.filter((i) => !i.offered && daysLeft(i) >= 0 && !(i.pid && byId[i.pid]?.vd));
   const flat = store.state.settings.flat;
   view.innerHTML = `
-    <section class="hero"><h1>Im Hausflur teilen</h1><p>Was du nicht mehr schaffst, freut die Nachbarn. Teile es in der Haus-Gruppe oder häng einen Aushang auf.</p></section>
-    ${neighborsLive(CONFIG) ? `<a class="card chef-entry" href="#/nachbarn"><span class="emoji">🏘️</span><span><b>Nachbarschafts-Börse</b><small>Essen in deiner Straße verschenken und offen darüber schreiben – ohne Telefonnummer</small></span></a>` : ''}
-    <label class="field">Abholen bei (Name an der Klingel, Etage)
-      <input type="text" value="${esc(flat)}" data-setting="flat" placeholder="z. B. Müller, 3. OG links"></label>
-    ${offered.length ? `<h3 class="group">Angeboten</h3><ul class="list">${offered.map((i) => `<li class="item">
-      <span class="item-main static"><span class="emoji">${i.emoji}</span><span class="item-text"><b>${esc(i.name)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}<small class="sub">gut bis ${dateLabel(i.expires)}</small></span></span>
-      <button class="btn small primary" data-action="consume" data-id="${i.id}" data-how="shared">Abgeholt</button></li>`).join('')}</ul>
-      <div class="row-btns"><button class="btn" data-action="share-offered">📲 Nochmal teilen</button><button class="btn" data-action="poster">🖨 Aushang drucken</button></div>` : ''}
-    <h3 class="group">Was möchtest du anbieten?</h3>
+    <section class="hero"><h1>${t('Im Hausflur teilen')}</h1><p>${t('Was du nicht mehr schaffst, freut die Nachbarn. Teile es in der Haus-Gruppe oder häng einen Aushang auf.')}</p></section>
+    ${neighborsLive(CONFIG) ? `<a class="card chef-entry" href="#/nachbarn"><span class="emoji">🏘️</span><span><b>${t('Nachbarschafts-Börse')}</b><small>${t('Essen in deiner Straße verschenken und offen darüber schreiben – ohne Telefonnummer')}</small></span></a>` : ''}
+    <label class="field">${t('Abholen bei (Name an der Klingel, Etage)')}
+      <input type="text" value="${esc(flat)}" data-setting="flat" placeholder="${esc(t('z. B. Müller, 3. OG links'))}"></label>
+    ${offered.length ? `<h3 class="group">${t('Angeboten')}</h3><ul class="list">${offered.map((i) => `<li class="item">
+      <span class="item-main static"><span class="emoji">${i.emoji}</span><span class="item-text"><b>${nm(i)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}<small class="sub">${t('gut bis {date}', { date: dateLabel(i.expires) })}</small></span></span>
+      <button class="btn small primary" data-action="consume" data-id="${i.id}" data-how="shared">${t('Abgeholt')}</button></li>`).join('')}</ul>
+      <div class="row-btns"><button class="btn" data-action="share-offered">📲 ${t('Nochmal teilen')}</button><button class="btn" data-action="poster">🖨 ${t('Aushang drucken')}</button></div>` : ''}
+    <h3 class="group">${t('Was möchtest du anbieten?')}</h3>
     ${candidates.length ? `<ul class="list compact checks">${candidates.map((i) => `<li class="item"><label>
       <input type="checkbox" data-offer="${i.id}" ${daysLeft(i) <= 3 ? 'checked' : ''}>
-      <span class="emoji">${i.emoji}</span><span class="item-text"><b>${esc(i.name)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}</span>${badge(i)}</label></li>`).join('')}</ul>
-      <div class="row-btns"><button class="btn primary" data-action="share">📲 In Haus-Gruppe teilen</button><button class="btn" data-action="poster-new">🖨 Aushang</button></div>
-      <p class="muted small">Fleisch, Fisch und Geflügel nach Verbrauchsdatum bitte nicht weitergeben. Angebrochenes nur, wenn du es selbst noch essen würdest.</p>`
-    : '<p class="muted center">Gerade nichts zum Verschenken.</p>'}
+      <span class="emoji">${i.emoji}</span><span class="item-text"><b>${nm(i)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}</span>${badge(i)}</label></li>`).join('')}</ul>
+      <div class="row-btns"><button class="btn primary" data-action="share">📲 ${t('In Haus-Gruppe teilen')}</button><button class="btn" data-action="poster-new">🖨 ${t('Aushang')}</button></div>
+      <p class="muted small">${t('Fleisch, Fisch und Geflügel nach Verbrauchsdatum bitte nicht weitergeben. Angebrochenes nur, wenn du es selbst noch essen würdest.')}</p>`
+    : `<p class="muted center">${t('Gerade nichts zum Verschenken.')}</p>`}
   `;
 }
 
@@ -772,45 +781,49 @@ function renderBilanz() {
   const rate = s.rate ?? 0;
   const notif = 'Notification' in window ? Notification.permission : 'unsupported';
   view.innerHTML = `
-    <section class="hero"><h1>Deine Bilanz</h1><p>Letzte 30 Tage</p></section>
-    ${s.rate === null ? '<p class="muted center">Sobald du Sachen als aufgebraucht, verschenkt oder weggeworfen markierst, siehst du hier, wie viel du rettest.</p>' : `
+    <section class="hero"><h1>${t('Deine Bilanz')}</h1><p>${t('Letzte 30 Tage')}</p></section>
+    ${s.rate === null ? `<p class="muted center">${t('Sobald du Sachen als aufgebraucht, verschenkt oder weggeworfen markierst, siehst du hier, wie viel du rettest.')}</p>` : `
     <section class="card stat-hero">
       <div class="ring" style="--p:${rate}"><span>${rate}%</span></div>
-      <div><b>gerettet statt weggeworfen</b><p class="muted small">${s.saved} gegessen oder verschenkt, ${s.wasted} im Müll</p></div>
+      <div><b>${t('gerettet statt weggeworfen')}</b><p class="muted small">${t('{saved} gegessen oder verschenkt, {wasted} im Müll', { saved: s.saved, wasted: s.wasted })}</p></div>
     </section>
     <div class="stats">
-      <div class="card stat"><b>${euro(s.wastedEuro)}</b><small>im Müll gelandet</small></div>
-      <div class="card stat"><b>${kg(s.wastedCo2)}</b><small>CO₂ dadurch verschwendet</small></div>
-      <div class="card stat"><b>${s.shared}</b><small>an Nachbarn verschenkt</small></div>
-      <div class="card stat"><b>${kg(all.savedCo2)}</b><small>CO₂ insgesamt gerettet</small></div>
+      <div class="card stat"><b>${euro(s.wastedEuro)}</b><small>${t('im Müll gelandet')}</small></div>
+      <div class="card stat"><b>${kg(s.wastedCo2)}</b><small>${t('CO₂ dadurch verschwendet')}</small></div>
+      <div class="card stat"><b>${s.shared}</b><small>${t('an Nachbarn verschenkt')}</small></div>
+      <div class="card stat"><b>${kg(all.savedCo2)}</b><small>${t('CO₂ insgesamt gerettet')}</small></div>
     </div>
-    ${s.topWasted.length ? `<section class="card tip">💡 Am häufigsten weggeworfen: <b>${s.topWasted.map(([n, c]) => `${esc(n)} (${c}×)`).join(', ')}</b>. Kleinere Packungen kaufen oder direkt nach dem Einkauf einen Teil einfrieren?</section>` : ''}`}
+    ${s.topWasted.length ? `<section class="card tip">💡 ${t('Am häufigsten weggeworfen:')} <b>${s.topWasted.map(([n, c]) => `${esc(pname({ name: n, pid: matchProduct(n)?.id }))} (${c}×)`).join(', ')}</b>. ${t('Kleinere Packungen kaufen oder direkt nach dem Einkauf einen Teil einfrieren?')}</section>` : ''}`}
     ${missionCard(s.rate === null ? null : s)}
     ${installed() ? '' : `
-    <h3 class="group">App</h3>
+    <h3 class="group">${t('App')}</h3>
     <div class="card settings">
-      <button class="set" data-action="install"><span>📲</span><span><b>Restlos installieren</b><small>Auf Handy oder Computer – startet dann wie eine normale App, auch offline</small></span></button>
+      <button class="set" data-action="install"><span>📲</span><span><b>${t('Restlos installieren')}</b><small>${t('Auf Handy oder Computer – startet dann wie eine normale App, auch offline')}</small></span></button>
     </div>`}
-    <h3 class="group">Erinnerungen</h3>
+    <h3 class="group">${t('Sprache')}</h3>
     <div class="card settings">
-      <button class="set" data-action="calendar"><span>📅</span><span><b>In den Kalender eintragen</b><small>Erinnerung am Vorabend für alles, was in den nächsten 3 Wochen abläuft</small></span></button>
-      ${notif !== 'unsupported' ? `<button class="set" data-action="notify"><span>🔔</span><span><b>${remindOn() ? 'Erinnerungen sind an' : 'Erinnerungen einschalten'}</b><small>${remindOn() ? 'Höchstens eine am Tag, 2 Tage bevor etwas abläuft · antippen zum Ausschalten' : notif === 'denied' ? 'Mitteilungen sind im Browser gesperrt – dort erlauben' : 'Höchstens eine Mitteilung am Tag, 2 Tage bevor etwas abläuft'}</small></span></button>` : ''}
+      <button class="set" data-action="language"><span>🌐</span><span><b>${LANGS[lang].name}</b><small>${t('Sprache der App ändern')}</small></span></button>
     </div>
-    <h3 class="group">KI-Koch</h3>
+    <h3 class="group">${t('Erinnerungen')}</h3>
+    <div class="card settings">
+      <button class="set" data-action="calendar"><span>📅</span><span><b>${t('In den Kalender eintragen')}</b><small>${t('Erinnerung am Vorabend für alles, was in den nächsten 3 Wochen abläuft')}</small></span></button>
+      ${notif !== 'unsupported' ? `<button class="set" data-action="notify"><span>🔔</span><span><b>${t(remindOn() ? 'Erinnerungen sind an' : 'Erinnerungen einschalten')}</b><small>${t(remindOn() ? 'Höchstens eine am Tag, 2 Tage bevor etwas abläuft · antippen zum Ausschalten' : notif === 'denied' ? 'Mitteilungen sind im Browser gesperrt – dort erlauben' : 'Höchstens eine Mitteilung am Tag, 2 Tage bevor etwas abläuft')}</small></span></button>` : ''}
+    </div>
+    <h3 class="group">${t('KI-Koch')}</h3>
     <div class="card settings">
       ${store.state.settings.aiKey
-    ? `<button class="set" data-action="chef-key-remove"><span>🔑</span><span><b>API-Schlüssel entfernen</b><small>Gespeichert: …${esc(store.state.settings.aiKey.slice(-4))} · nur auf diesem Gerät, nicht in der Sicherung</small></span></button>`
-    : CONFIG.chefServer || CONFIG.appKey ? '<a class="set" href="#/koch"><span>👨‍🍳</span><span><b>KI-Koch ist an</b><small>Kostenlos, ohne Einrichtung – Koch und Bon-Erkennung</small></span></a>'
-      : '<a class="set" href="#/koch"><span>🔑</span><span><b>KI-Koch einrichten</b><small>Kostenlosen Gemini-Schlüssel eintragen</small></span></a>'}
+    ? `<button class="set" data-action="chef-key-remove"><span>🔑</span><span><b>${t('API-Schlüssel entfernen')}</b><small>${t('Gespeichert: …{end} · nur auf diesem Gerät, nicht in der Sicherung', { end: esc(store.state.settings.aiKey.slice(-4)) })}</small></span></button>`
+    : CONFIG.chefServer || CONFIG.appKey ? `<a class="set" href="#/koch"><span>👨‍🍳</span><span><b>${t('KI-Koch ist an')}</b><small>${t('Kostenlos, ohne Einrichtung – Koch und Bon-Erkennung')}</small></span></a>`
+      : `<a class="set" href="#/koch"><span>🔑</span><span><b>${t('KI-Koch einrichten')}</b><small>${t('Kostenlosen Gemini-Schlüssel eintragen')}</small></span></a>`}
     </div>
-    <h3 class="group">Daten</h3>
+    <h3 class="group">${t('Daten')}</h3>
     <div class="card settings">
-      <button class="set" data-action="export"><span>💾</span><span><b>Sicherung speichern</b><small>Alles bleibt auf diesem Gerät – hier als Datei sichern</small></span></button>
-      <button class="set" data-action="import"><span>📂</span><span><b>Sicherung laden</b><small>z. B. auf einem neuen Handy</small></span></button>
-      <button class="set" data-action="demo"><span>🧪</span><span><b>Beispiel-Vorrat laden</b><small>Zum Ausprobieren</small></span></button>
-      <button class="set danger" data-action="reset"><span>🗑</span><span><b>Alles löschen</b></span></button>
+      <button class="set" data-action="export"><span>💾</span><span><b>${t('Sicherung speichern')}</b><small>${t('Alles bleibt auf diesem Gerät – hier als Datei sichern')}</small></span></button>
+      <button class="set" data-action="import"><span>📂</span><span><b>${t('Sicherung laden')}</b><small>${t('z. B. auf einem neuen Handy')}</small></span></button>
+      <button class="set" data-action="demo"><span>🧪</span><span><b>${t('Beispiel-Vorrat laden')}</b><small>${t('Zum Ausprobieren')}</small></span></button>
+      <button class="set danger" data-action="reset"><span>🗑</span><span><b>${t('Alles löschen')}</b></span></button>
     </div>
-    <p class="muted small center">Restlos · kostenlos und werbefrei · Haltbarkeiten und CO₂-Werte sind Schätzungen.</p>
+    <p class="muted small center">${t('Restlos · kostenlos und werbefrei · Haltbarkeiten und CO₂-Werte sind Schätzungen.')}</p>
   `;
 }
 
@@ -818,7 +831,7 @@ function renderBilanz() {
 // Android und Chrome/Edge am Computer bieten einen eigenen Dialog an; iPhone und Safari nur über das Teilen-Menü.
 let installPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; });
-window.addEventListener('appinstalled', () => { installPrompt = null; toast('Restlos ist installiert 🎉'); render(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; toast(t('Restlos ist installiert 🎉')); render(); });
 const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
 async function install() {
@@ -830,27 +843,27 @@ async function install() {
   }
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   openSheet(`
-    <h2 id="sheet-title">Restlos installieren</h2>
+    <h2 id="sheet-title">${t('Restlos installieren')}</h2>
     ${ios ? `<ol class="steps">
-      <li>Diese Seite in <b>Safari</b> öffnen.</li>
-      <li>Unten auf <b>Teilen</b> tippen (Quadrat mit Pfeil nach oben).</li>
-      <li><b>„Zum Home-Bildschirm“</b> wählen und <b>Hinzufügen</b> tippen.</li></ol>`
-    : `<h3>Android</h3><ol class="steps"><li>In <b>Chrome</b> oben rechts auf <b>⋮</b> tippen.</li><li><b>„App installieren“</b> oder „Zum Startbildschirm hinzufügen“ wählen.</li></ol>
-      <h3>Computer</h3><ol class="steps"><li>In <b>Chrome</b> oder <b>Edge</b> rechts in der Adressleiste auf das Installieren-Symbol (Bildschirm mit Pfeil) klicken.</li><li>Oder im Menü <b>⋮ → „Restlos installieren“</b>. Am Mac in Safari: <b>Ablage → „Zum Dock hinzufügen“</b>.</li></ol>`}
-    <p class="muted small">Danach startet Restlos wie eine normale App, auch ohne Internet. Deine Daten bleiben auf dem Gerät.</p>
+      <li>${t('Diese Seite in <b>Safari</b> öffnen.')}</li>
+      <li>${t('Unten auf <b>Teilen</b> tippen (Quadrat mit Pfeil nach oben).')}</li>
+      <li>${t('<b>„Zum Home-Bildschirm“</b> wählen und <b>Hinzufügen</b> tippen.')}</li></ol>`
+    : `<h3>Android</h3><ol class="steps"><li>${t('In <b>Chrome</b> oben rechts auf <b>⋮</b> tippen.')}</li><li>${t('<b>„App installieren“</b> oder „Zum Startbildschirm hinzufügen“ wählen.')}</li></ol>
+      <h3>${t('Computer')}</h3><ol class="steps"><li>${t('In <b>Chrome</b> oder <b>Edge</b> rechts in der Adressleiste auf das Installieren-Symbol (Bildschirm mit Pfeil) klicken.')}</li><li>${t('Oder im Menü <b>⋮ → „Restlos installieren“</b>. Am Mac in Safari: <b>Ablage → „Zum Dock hinzufügen“</b>.')}</li></ol>`}
+    <p class="muted small">${t('Danach startet Restlos wie eine normale App, auch ohne Internet. Deine Daten bleiben auf dem Gerät.')}</p>
   `);
 }
 
 // ---------- Beispiel-Vorrat ----------
 function loadDemo() {
-  const t = iso();
+  const today = iso();
   const demo = [['Joghurt', 1, 0], ['Milch', 1, 2], ['Brot', 1, 1], ['Bananen', 4, 1], ['Zucchini', 2, 3], ['Paprika', 2, 4], ['Eier', 6, 12],
     ['Gouda', 1, 9], ['Hackfleisch', 1, 1], ['Spinat', 1, 0], ['Nudeln', 2, 300], ['Kartoffeln', 1, 20], ['Zwiebeln', 1, 25], ['Äpfel', 6, 14], ['Tomaten', 4, 2], ['Kidney Bohnen', 1, 400]];
-  store.add(demo.map(([name, qty, d]) => ({ name, qty, expires: addDays(t, d), bought: addDays(t, -2) })), 'demo');
+  store.add(demo.map(([name, qty, d]) => ({ name, qty, expires: addDays(today, d), bought: addDays(today, -2) })), 'demo');
   const log = [['Salat', 'gemuese', 'wasted', 1.29, 3], ['Joghurt', 'milch', 'used', 0.89, 5], ['Brot', 'brot', 'used', 2.49, 6], ['Bananen', 'obst', 'shared', 1.49, 8], ['Milch', 'milch', 'used', 1.19, 9], ['Salat', 'gemuese', 'wasted', 1.29, 12], ['Käse', 'kaese', 'used', 2.29, 15]];
-  for (const [name, cat, action, price, ago] of log) store.state.log.push({ id: `d${ago}`, name, pid: matchProduct(name)?.id, cat, qty: 1, price, action, date: addDays(t, -ago) });
+  for (const [name, cat, action, price, ago] of log) store.state.log.push({ id: `d${ago}`, name, pid: matchProduct(name)?.id, cat, qty: 1, price, action, date: addDays(today, -ago) });
   store.setting('demo', true);
-  toast('Beispiel-Vorrat geladen');
+  toast(t('Beispiel-Vorrat geladen'));
 }
 
 // ---------- Aktionen ----------
@@ -869,7 +882,7 @@ const actions = {
     const i = store.find(el.dataset.id);
     store.update(i.id, { place: 'tk', expires: addDays(iso(), i.cat === 'fleisch' ? 90 : 60) });
     closeSheet();
-    toast(`${i.name} eingefroren – hält jetzt bis ${dateLabel(store.find(i.id).expires)}`);
+    toast(t('{name} eingefroren – hält jetzt bis {date}', { name: pname(i), date: dateLabel(store.find(i.id).expires) }));
   },
   offer: (el) => {
     const i = store.find(el.dataset.id);
@@ -899,7 +912,7 @@ const actions = {
     if (!items.length) return;
     const added = store.add(items, 'hand');
     closeSheet();
-    toast(added.length === 1 ? `${added[0].name} hinzugefügt` : `${added.length} Sachen hinzugefügt`, () => added.forEach((i) => store.consume(i.id, 'removed')));
+    toast(added.length === 1 ? t('{name} hinzugefügt', { name: pname(added[0]) }) : t('{n} Sachen hinzugefügt', { n: added.length }), () => added.forEach((i) => store.consume(i.id, 'removed')));
   },
   // Kassenbon
   photo: () => $('#photo').click(),
@@ -914,19 +927,19 @@ const actions = {
   // Rezepte
   veg: () => { store.setting('veg', !store.state.settings.veg); },
   recipe: (el) => recipeSheet(+el.dataset.n),
-  'to-list': (el) => { el.dataset.names.split('|').forEach((n) => store.addShopping(n)); toast('Auf der Einkaufsliste'); el.remove(); },
+  'to-list': (el) => { el.dataset.names.split('|').forEach((n) => store.addShopping(n)); toast(t('Auf der Einkaufsliste')); el.remove(); },
   cooked: () => {
     const ids = [...sheet.querySelectorAll('[data-use]:checked')].map((c) => c.dataset.use);
     const undos = ids.map((id) => store.consume(id, 'used', 1)).filter(Boolean);
     closeSheet();
-    toast(`Guten Appetit! ${ids.length} ${ids.length === 1 ? 'Sache' : 'Sachen'} gerettet 🌱`, () => undos.reverse().forEach((u) => u()));
+    toast(`${t('Guten Appetit!')} ${tn(ids.length, '1 Sache gerettet 🌱', '{n} Sachen gerettet 🌱')}`, () => undos.reverse().forEach((u) => u()));
   },
   install,
   'milestone-ok': (el) => store.setting('milestone', +el.dataset.m),
   mission: (el) => { store.setting('milestone', Math.max(store.state.settings.milestone || 0, +el.dataset.m)); location.hash = '#/bilanz?mission=1'; },
   // Retten & neue Ideen
   rescue: () => rescueSheet(),
-  'rescue-chef': (el) => { const i = store.find(el.dataset.id); if (i) chefWith(rescueText(i), `🌱 ${i.name} retten`); },
+  'rescue-chef': (el) => { const i = store.find(el.dataset.id); if (i) chefWith(rescueText(i), `🌱 ${t('{name} retten', { name: pname(i) })}`); },
   'close-go': (el) => { closeSheet(); location.hash = el.getAttribute('href'); },
   'ideas-more': () => loadIdeas((chefIdeas.list || []).map((x) => x.name)),
   'idea-cook': (el) => {
@@ -938,67 +951,85 @@ const actions = {
   'chef-retry': () => chefSend(),
   'chef-stop': () => chat.ctrl?.abort(),
   'chef-reset': () => { chat.ctrl?.abort(); Object.assign(chat, { messages: [], error: '' }); render(); window.scrollTo(0, 0); },
-  'chef-idea': (el) => chefSend(`Mach mir lieber „${el.dataset.idea}“ – bitte als vollständiges Rezept.`, `Lieber: ${el.dataset.idea}`),
+  'chef-idea': (el) => chefSend(`Mach mir lieber „${el.dataset.idea}“ – bitte als vollständiges Rezept.`, t('Lieber: {name}', { name: el.dataset.idea })),
   'chef-cooked': chefCookedSheet,
   'chef-pantry': () => { chat.pantry = !chat.pantry; render(); },
   'chef-persons': (el) => { chat.persons = +el.dataset.v; render(); },
   'chef-minutes': (el) => { chat.minutes = +el.dataset.v; render(); },
   'chef-listen': (el) => listen($('#chef-text'), () => { chat.draft = $('#chef-text').value; }, el),
-  'chef-key-remove': () => { if (confirm('API-Schlüssel von diesem Gerät entfernen?')) { store.setting('aiKey', ''); toast('Schlüssel entfernt'); } },
+  'chef-key-remove': () => { if (confirm(t('API-Schlüssel von diesem Gerät entfernen?'))) { store.setting('aiKey', ''); toast(t('Schlüssel entfernt')); } },
   // Einkauf
   'shop-toggle': (el) => store.toggleShopping(el.dataset.id),
   'shop-remove': (el) => store.removeShopping(el.dataset.id),
-  'shop-quick': (el) => { store.addShopping(el.dataset.name); toast(`${el.dataset.name} auf der Liste`); },
-  'shop-to-pantry': () => { const added = store.shoppingToPantry(); toast(`${added.length} Sachen in den Vorrat übernommen`); },
+  'shop-quick': (el) => { store.addShopping(el.dataset.name); toast(t('{name} auf der Liste', { name: el.dataset.name })); },
+  'shop-to-pantry': () => { const added = store.shoppingToPantry(); toast(tn(added.length, '1 Sache in den Vorrat übernommen', '{n} Sachen in den Vorrat übernommen')); },
   // Teilen
   share: async () => {
     const items = selectedOffers();
-    if (!items.length) return toast('Erst etwas auswählen');
+    if (!items.length) return toast(t('Erst etwas auswählen'));
     items.forEach((i) => store.update(i.id, { offered: iso() }));
     const how = await shareItems(items, store.state.settings.flat);
-    if (how === 'copied') toast('Text kopiert – jetzt in die Haus-Gruppe einfügen');
+    if (how === 'copied') toast(t('Text kopiert – jetzt in die Haus-Gruppe einfügen'));
   },
   'share-offered': async () => {
     const how = await shareItems(store.items().filter((i) => i.offered), store.state.settings.flat);
-    if (how === 'copied') toast('Text kopiert');
+    if (how === 'copied') toast(t('Text kopiert'));
   },
-  poster: () => printPoster(store.items().filter((i) => i.offered), store.state.settings.flat) || toast('Bitte Pop-ups erlauben'),
+  poster: () => printPoster(store.items().filter((i) => i.offered), store.state.settings.flat) || toast(t('Bitte Pop-ups erlauben')),
   'poster-new': () => {
     const items = selectedOffers();
-    if (!items.length) return toast('Erst etwas auswählen');
+    if (!items.length) return toast(t('Erst etwas auswählen'));
     items.forEach((i) => store.update(i.id, { offered: iso() }));
-    printPoster(items, store.state.settings.flat) || toast('Bitte Pop-ups erlauben');
+    printPoster(items, store.state.settings.flat) || toast(t('Bitte Pop-ups erlauben'));
   },
   // Einstellungen
   calendar: () => {
     const ics = calendarFile(store.items());
-    if (!ics) return toast('In den nächsten 3 Wochen läuft nichts ab');
+    if (!ics) return toast(t('In den nächsten 3 Wochen läuft nichts ab'));
     download(ics, 'restlos-erinnerungen.ics', 'text/calendar');
   },
   notify: async () => {
-    if (!('Notification' in window)) return toast('Dieser Browser kann keine Mitteilungen – nutze den Kalender');
+    if (!('Notification' in window)) return toast(t('Dieser Browser kann keine Mitteilungen – nutze den Kalender'));
     if (Notification.permission === 'granted' && store.state.settings.remind !== false) {
       store.setting('remind', false);
       syncReminders();
-      return toast('Erinnerungen aus');
+      return toast(t('Erinnerungen aus'));
     }
     const r = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-    if (r !== 'granted') { render(); return toast('Mitteilungen wurden nicht erlaubt – in den Einstellungen des Browsers änderbar'); }
+    if (r !== 'granted') { render(); return toast(t('Mitteilungen wurden nicht erlaubt – in den Einstellungen des Browsers änderbar')); }
     store.setting('remind', true);
     syncReminders();
     const bg = await backgroundReminders();
-    toast(bg ? 'Erinnerungen an – höchstens eine am Tag' : 'Erinnerungen an – kommen, wenn du Restlos öffnest');
+    toast(t(bg ? 'Erinnerungen an – höchstens eine am Tag' : 'Erinnerungen an – kommen, wenn du Restlos öffnest'));
   },
   export: () => download(store.exportJson(), `restlos-sicherung-${iso()}.json`, 'application/json'),
   import: () => $('#backup').click(),
-  reset: () => { if (confirm('Wirklich alles löschen? Vorrat, Einkaufsliste und Bilanz.')) { store.reset(); toast('Alles gelöscht'); } },
+  reset: () => { if (confirm(t('Wirklich alles löschen? Vorrat, Einkaufsliste und Bilanz.'))) { store.reset(); toast(t('Alles gelöscht')); } },
+  language: () => languageSheet(),
+  'set-lang': (el) => {
+    if (el.dataset.lang === lang) return closeSheet();
+    saveLang(el.dataset.lang);
+    location.reload();
+  },
 };
+
+// ---------- Sprache ----------
+// Jede Sprache in ihrer eigenen Schrift, damit man sie auch erkennt, wenn man die aktuelle nicht lesen kann.
+function languageSheet() {
+  openSheet(`
+    <h2 id="sheet-title">🌐 ${t('Sprache')}</h2>
+    <div class="lang-list">${Object.entries(LANGS).map(([code, l]) => `<button class="lang-btn ${code === lang ? 'on' : ''}" data-action="set-lang" data-lang="${code}" lang="${code}" dir="${l.dir || 'ltr'}" aria-pressed="${code === lang}">
+      <b>${l.name}</b>${code === lang ? '<span aria-hidden="true">✓</span>' : ''}</button>`).join('')}</div>
+    <p class="muted small">${t('Der KI-Koch antwortet in der gewählten Sprache.')}</p>
+  `);
+}
 
 function consume(id, how, qty) {
   const i = store.find(id);
   if (!i) return;
   const undo = store.consume(id, how, qty);
-  const msg = { used: `${i.name} aufgebraucht 👍`, wasted: `${i.name} weggeworfen`, shared: `${i.name} verschenkt – danke! 🤝`, removed: `${i.name} gelöscht` }[how];
+  const name = pname(i);
+  const msg = { used: t('{name} aufgebraucht 👍', { name }), wasted: t('{name} weggeworfen', { name }), shared: t('{name} verschenkt – danke! 🤝', { name }), removed: t('{name} gelöscht', { name }) }[how];
   toast(msg, undo);
 }
 
@@ -1042,9 +1073,9 @@ document.addEventListener('submit', (e) => {
   if (form === 'ai-key') {
     e.preventDefault();
     const key = $('#ai-key').value.trim();
-    if (!key) return toast('Bitte den Schlüssel einfügen');
+    if (!key) return toast(t('Bitte den Schlüssel einfügen'));
     store.setting('aiKey', key);
-    toast('Gespeichert – der Koch ist bereit');
+    toast(t('Gespeichert – der Koch ist bereit'));
     return;
   }
   if (form !== 'shop') return;
@@ -1069,7 +1100,7 @@ $('#backup').addEventListener('change', async (e) => {
   const f = e.target.files[0];
   e.target.value = '';
   if (!f) return;
-  try { store.importJson(await f.text()); toast('Sicherung geladen'); } catch (err) { toast(`Konnte die Datei nicht lesen: ${err.message}`); }
+  try { store.importJson(await f.text()); toast(t('Sicherung geladen')); } catch (err) { toast(t('Konnte die Datei nicht lesen: {error}', { error: err.message })); }
 });
 
 // ---------- Navigation ----------
@@ -1171,7 +1202,7 @@ async function remindInApp() {
   store.setting('reminder', remember(memo, plan, iso(), items));
   syncReminders();
   if (sheet.open) return;
-  toast(`⏰ ${plan.title}`, () => rescueSheet(), 'Retten-Ideen');
+  toast(`⏰ ${plan.title}`, () => rescueSheet(), t('Retten-Ideen'));
 }
 
 // Tipp auf die Mitteilung (…#/vorrat?retten=1) öffnet die Retten-Ideen.

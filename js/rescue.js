@@ -2,6 +2,7 @@
 // Ohne DOM und Netz, damit es testbar bleibt – app.js zeigt an, sw.js verschickt im Hintergrund.
 import { iso, addDays, daysLeft } from './pantry.js';
 import { byId } from './products.js';
+import { t, pname } from './i18n.js';
 
 // So viele Tage vorher erinnert Restlos (2 = übermorgen, morgen, heute).
 export const REMIND_DAYS = 2;
@@ -63,12 +64,12 @@ const NO_FREEZE = new Set(['salat', 'rucola', 'gurke', 'avocado', 'joghurt', 'qu
 export function rescueTips(item, today = iso()) {
   const d = daysLeft(item, today);
   const p = item.pid && byId[item.pid];
-  if (p?.vd && d < 0) return [T('⚠️', 'Verbrauchsdatum überschritten – bitte nicht mehr essen.')];
+  if (p?.vd && d < 0) return [T('⚠️', t('Verbrauchsdatum überschritten – bitte nicht mehr essen.'))];
   const tips = [...(PRODUCT_TIPS[item.pid] ?? CAT_TIPS[item.cat] ?? [])];
   const freezable = item.place !== 'tk' && !NO_FREEZE.has(item.pid) && !['getraenke', 'vorrat', 'tk', 'sonst'].includes(item.cat);
   if (freezable && !tips.some((t) => t.icon === '❄️')) tips.push(T('❄️', 'Einfrieren – hält dann Wochen länger'));
   if (!p?.vd && d >= 0) tips.push(T('🤝', 'Schaffst du es nicht? Im Hausflur verschenken'));
-  return tips.slice(0, 3);
+  return tips.slice(0, 3).map((x) => T(x.icon, t(x.text)));
 }
 
 // ---------- Erinnerungen ----------
@@ -79,7 +80,7 @@ export function rescueTips(item, today = iso()) {
 // memo = { day: 'JJJJ-MM-TT' der letzten Mitteilung, seen: { id: Ablaufdatum } }
 export const emptyMemo = () => ({ day: '', seen: {} });
 
-const when = (d) => (d <= 0 ? 'heute' : d === 1 ? 'morgen' : d === 2 ? 'übermorgen' : `in ${d} Tagen`);
+const when = (d) => (d <= 0 ? t('heute') : d === 1 ? t('morgen') : d === 2 ? t('übermorgen') : t('in {n} Tagen', { n: d }));
 
 export function dueSoon(items, today = iso(), days = REMIND_DAYS) {
   return items
@@ -98,12 +99,13 @@ export function reminderPlan(items, memo = emptyMemo(), today = iso(), idea) {
   const due = dueSoon(items, today, REMIND_DAYS + 1);
   const n = due.length;
   const first = due[0];
-  const title = n === 1 ? `Bald weg: ${first.name}` : `${n} Sachen laufen bald ab`;
-  const list = due.slice(0, 4).map((i) => `${i.name} (${when(daysLeft(i, today))})`).join(', ') + (n > 4 ? ` und ${n - 4} mehr` : '');
+  const title = n === 1 ? t('Bald weg: {name}', { name: pname(first) }) : t('{n} Sachen laufen bald ab', { n });
+  const list = due.slice(0, 4).map((i) => `${pname(i)} (${when(daysLeft(i, today))})`).join(', ') + (n > 4 ? t(' und {n} mehr', { n: n - 4 }) : '');
   const tip = idea?.(due);
+  const ideaText = tip ? ` ${t('Idee: {tip}.', { tip })}` : '';
   const body = n === 1
-    ? `Ablauf ${when(daysLeft(first, today))}.${tip ? ` Idee: ${tip}.` : ''} Tippe für Retten-Tipps.`
-    : `${list}.${tip ? ` Idee: ${tip}.` : ''} Tippe für Retten-Tipps.`;
+    ? `${t('Ablauf {when}.', { when: when(daysLeft(first, today)) })}${ideaText} ${t('Tippe für Retten-Tipps.')}`
+    : `${list}.${ideaText} ${t('Tippe für Retten-Tipps.')}`;
   return { title, body, ids: due.map((i) => i.id), seen: Object.fromEntries(due.map((i) => [i.id, i.expires])), url: './#/vorrat?retten=1' };
 }
 

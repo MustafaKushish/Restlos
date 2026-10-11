@@ -4,6 +4,7 @@
 // Salz, Pfeffer, Öl, Zucker, Mehl und Gewürze setzen wir als vorhanden voraus.
 import { urgency, daysLeft, iso } from './pantry.js';
 import { byId } from './products.js';
+import { t, pname, productName, recipeText } from './i18n.js';
 
 export const RECIPES = [
   { id: 'frittata', name: 'Frittata mit {}', emoji: '🍳', time: 25, veg: true, need: ['eier', 'cat:gemuese'], opt: ['kaese|feta|parmesan|mozzarella', 'kartoffeln', 'schinken|speck|wurst'],
@@ -114,12 +115,16 @@ export function suggest(items, { today = iso(), limit = 8, vegOnly = false } = {
     if (!have.length || missing.length > 1 || missing.length >= r.need.length) continue;
     const urgent = all.filter((i) => daysLeft(i, today) <= 3);
     const score = all.reduce((s, i) => s + urgency(i, today), 0) + (missing.length ? -4 : 3) + have.length;
-    const dyn = all.filter((i) => ['gemuese', 'obst'].includes(i.cat) && !BASICS.has(i.pid)).map((i) => i.name)
+    const dyn = all.filter((i) => ['gemuese', 'obst'].includes(i.cat) && !BASICS.has(i.pid)).map(pname)
       .filter((n, k, arr) => arr.indexOf(n) === k).slice(0, 3);
-    const name = r.name.includes('{}')
-      ? (dyn.length ? r.name.replace('{}', dyn.length > 1 ? `${dyn.slice(0, -1).join(', ')} & ${dyn.at(-1)}` : dyn[0]) : r.name.replace(/ (mit|aus) \{\}/, ''))
-      : r.name;
-    out.push({ ...r, title: name, uses: all, urgent, missing: missing.map(label), score });
+    // Übersetzte Rezepte: { name: 'Frittata with {}', base: 'Frittata', steps: […] }
+    const tr = recipeText(r.id);
+    const base = tr ? (tr.base || tr.name) : r.name.replace(/ (mit|aus) \{\}/, '');
+    const pattern = tr?.name || r.name;
+    const name = pattern.includes('{}')
+      ? (dyn.length ? pattern.replace('{}', dyn.length > 1 ? `${dyn.slice(0, -1).join(', ')} & ${dyn.at(-1)}` : dyn[0]) : base)
+      : pattern;
+    out.push({ ...r, steps: tr?.steps?.length === r.steps.length ? tr.steps : r.steps, title: name, uses: all, urgent, missing: missing.map(label), score });
   }
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }
@@ -127,6 +132,6 @@ export function suggest(items, { today = iso(), limit = 8, vegOnly = false } = {
 // „milch|hmilch“ → „Milch“, „cat:gemuese“ → „Gemüse“ – für die Einkaufsliste.
 export function label(spec) {
   const first = spec.split('|')[0];
-  if (first.startsWith('cat:')) return { gemuese: 'Gemüse', obst: 'Obst', kaese: 'Käse' }[first.slice(4)] || first.slice(4);
-  return byId[first]?.name || first;
+  if (first.startsWith('cat:')) return t({ gemuese: 'Gemüse', obst: 'Obst', kaese: 'Käse' }[first.slice(4)] || first.slice(4));
+  return byId[first] ? productName(first) : first;
 }
