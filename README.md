@@ -25,6 +25,14 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
 - **KI-Koch und KI-Bonerkennung ohne Einrichtung für Nutzer:** kostenlosen Gemini-Schlüssel (aistudio.google.com) auf GitHub unter *Settings → Secrets and variables → Actions → New repository secret* als `GEMINI_API_KEY` speichern. Beim Veröffentlichen setzt der Workflow ihn in die App ein. Wichtig: Der Schlüssel ist dann im Code der Webseite sichtbar. Deshalb in der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) beim Schlüssel *Website-Einschränkung* auf `https://mustafakushish.github.io/*` und *API-Einschränkung* auf „Generative Language API“ setzen und **keine Zahlungsdaten** hinterlegen – dann kann er höchstens das kostenlose Tageslimit verbrauchen, nie Geld kosten. Alternative ohne sichtbaren Schlüssel: der Koch-Server in `worker/` ([Anleitung](worker/README.md)). Nutzer können auch selbst einen Schlüssel eintragen.
 - **Unterstützen:** PayPal-Link in `js/config.js` eintragen, dann erscheinen die Knöpfe „Restlos unterstützen“ (Bilanz und nach jedem Rezept).
 
+## Sprachen
+
+Restlos spricht **Deutsch, Englisch, Türkisch, Arabisch (von rechts nach links), Französisch und Spanisch**. Beim ersten Start nimmt die App die Sprache des Handys, umschalten geht oben über 🌐 oder unter *Bilanz → Sprache*. Übersetzt sind alle Texte, Lebensmittel und Rezepte; der KI-Koch antwortet in der gewählten Sprache.
+
+- Im Code steht der deutsche Text in `t('…')` (`js/i18n.js`), die Übersetzungen liegen in `js/lang/<code>.js`.
+- **Neuer Text:** `t('Deutscher Text')` schreiben und in jede Sprachdatei eintragen. Fehlt eine Übersetzung, erscheint Deutsch, und `npm test` zeigt genau, welche fehlt.
+- **Neue Sprache:** Eintrag in `LANGS` (`js/i18n.js`), Datei `js/lang/<code>.js` nach dem Muster von `en.js`, in `sw.js` aufnehmen. `node tests/i18n-keys.mjs` gibt alle Texte als Vorlage aus.
+
 ## Technik
 
 - Installierbare Web-App (PWA), ohne Build-Schritt, läuft offline. Eine Codebasis für iPhone, Android und Desktop.
