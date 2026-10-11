@@ -137,11 +137,27 @@ const NON_FOOD = [
   'reiniger', 'putzmittel', 'schwamm', 'handseife', 'pflaster',
 ];
 
+// Umlaute wie auf dem Bon (ae, oe, ue), andere Akzente weg (crème → creme). Buchstaben anderer Schriften bleiben.
 export const norm = (s) => String(s).toLowerCase()
   .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-  .replace(/[^a-z0-9%]+/g, ' ').trim();
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^\p{L}\p{N}%]+/gu, ' ').trim();
 
 export const byId = Object.fromEntries(PRODUCTS.map((p) => [p.id, p]));
+
+// Namen in der gewählten Sprache (i18n.js): Damit findet Restlos auch „milk“ oder „süt“.
+let localNames = {};
+const BASE_KEYS = Object.fromEntries(PRODUCTS.map((p) => [p.id, p.keys]));
+export function addProductNames(names) {
+  localNames = names;
+  for (const p of PRODUCTS) {
+    const name = names[p.id];
+    const extra = name ? [name, ...name.split(/\s*[,/&]\s*/)].map(norm).filter((k) => k.length > 2) : [];
+    // Mehrzahl auf -s auch in der Einzahl finden (bananas → banana)
+    for (const k of [...extra]) if (/s$/.test(k) && k.length > 4) extra.push(k.slice(0, -1));
+    p.keys = [...BASE_KEYS[p.id], ...new Set(extra)];
+  }
+}
 
 // Findet das passende Produkt zu einem Text („BIO BANANE“, „Ja! H-Milch 3,5%“, „Erdbeerjoghurt“).
 // Im Deutschen steht das Wichtigste am Wortende (Erdbeer|joghurt), deshalb zählen Treffer dort mehr.
@@ -189,10 +205,10 @@ export function searchProducts(query, limit = 6) {
   if (!q) return [];
   const hits = [];
   for (const p of PRODUCTS) {
-    const name = norm(p.name);
+    const names = [norm(p.name), localNames[p.id] && norm(localNames[p.id])].filter(Boolean);
     let s = 0;
-    if (name.startsWith(q)) s = 3;
-    else if (name.includes(q)) s = 2;
+    if (names.some((name) => name.startsWith(q))) s = 3;
+    else if (names.some((name) => name.includes(q))) s = 2;
     else if (p.keys.some((k) => norm(k.replace('=', '')).startsWith(q))) s = 1;
     if (s) hits.push([s, p]);
   }

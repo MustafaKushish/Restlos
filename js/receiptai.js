@@ -3,6 +3,7 @@
 // Ein langer Bon darf aus mehreren, sich überlappenden Fotos bestehen. Zeigt das Foto keinen Bon, sondern
 // Lebensmittel selbst (Einkauf auf dem Tisch, Kühlschrank), zählt die KI die Produkte.
 import { GEMINI_MODELS, GEMINI_URL, nextModel } from './chef.js';
+import { t } from './i18n.js';
 
 export const MAX_PHOTOS = 6;
 export const KINDS = ['essen', 'haushalt', 'pfand'];
@@ -158,5 +159,5 @@ export async function geminiJSON(images, { apiKey, server, fetch = globalThis.fe
     last = res.status;
     if (server || !nextModel(res.status)) break;
   }
-  throw new Error(`KI-Bonerkennung nicht erreichbar (Fehler ${last})`);
+  throw new Error(t('KI-Bonerkennung nicht erreichbar (Fehler {code})', { code: last }));
 }

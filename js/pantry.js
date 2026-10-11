@@ -1,5 +1,6 @@
 // Vorrat: Datumsrechnung, Haltbarkeit, Dringlichkeit und Bilanz. Ohne DOM, damit es testbar bleibt.
 import { CATS, byId, matchProduct } from './products.js';
+import { t } from './i18n.js';
 
 // Datum immer als 'JJJJ-MM-TT' in Ortszeit – so verschiebt keine Zeitumstellung einen Tag.
 export const iso = (d = new Date()) => {
@@ -48,13 +49,14 @@ export const daysLeft = (item, today = iso()) => daysBetween(today, item.expires
 export function status(item, today = iso()) {
   const d = daysLeft(item, today);
   const vd = item.pid && byId[item.pid]?.vd;
-  if (d < 0) return { level: 'over', d, vd, label: d === -1 ? 'seit gestern drüber' : `seit ${-d} Tagen drüber` };
-  if (d === 0) return { level: 'today', d, vd, label: 'heute' };
-  if (d === 1) return { level: 'soon', d, vd, label: 'morgen' };
-  if (d <= 3) return { level: 'soon', d, vd, label: `noch ${d} Tage` };
-  if (d <= 7) return { level: 'week', d, vd, label: `noch ${d} Tage` };
-  if (d <= 60) return { level: 'ok', d, vd, label: d < 14 ? `noch ${d} Tage` : `noch ${Math.round(d / 7)} Wochen` };
-  return { level: 'ok', d, vd, label: d < 365 ? `noch ${Math.round(d / 30)} Monate` : 'lange haltbar' };
+  const left = (n) => t('noch {n} Tage', { n });
+  if (d < 0) return { level: 'over', d, vd, label: d === -1 ? t('seit gestern drüber') : t('seit {n} Tagen drüber', { n: -d }) };
+  if (d === 0) return { level: 'today', d, vd, label: t('heute') };
+  if (d === 1) return { level: 'soon', d, vd, label: t('morgen') };
+  if (d <= 3) return { level: 'soon', d, vd, label: left(d) };
+  if (d <= 7) return { level: 'week', d, vd, label: left(d) };
+  if (d <= 60) return { level: 'ok', d, vd, label: d < 14 ? left(d) : t('noch {n} Wochen', { n: Math.round(d / 7) }) };
+  return { level: 'ok', d, vd, label: d < 365 ? t('noch {n} Monate', { n: Math.round(d / 30) }) : t('lange haltbar') };
 }
 
 // Wie dringend sollte etwas weg? Für Rezeptvorschläge.
@@ -105,7 +107,8 @@ const SMALL = /^(g|gr|gramm|ml)$/i;
 
 export function parseFreeText(text) {
   return String(text)
-    .split(/\s*(?:,|;|\n|\bund\b|\bsowie\b|\bplus\b)\s*/i)
+    // „und“ auch in den anderen Sprachen der App (and, ve, et, y, و)
+    .split(/\s*(?:,|;|\n|،|\bund\b|\bsowie\b|\bplus\b|\band\b|\bve\b|\bet\b|\by\b|(?<=\s)و(?=\s))\s*/i)
     .map((part) => part.trim().replace(/[.!?]+$/, ''))
     .filter(Boolean)
     .map((part) => {

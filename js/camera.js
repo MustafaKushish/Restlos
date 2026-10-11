@@ -1,15 +1,17 @@
 // Kamera-Scanner: Live-Bild mit Rahmen, Hinweise in Echtzeit (zu dunkel, ruhig halten), Taschenlampe
 // und mehrere Fotos hintereinander für lange Bons. Liefert die Fotos als Blobs zurück.
+import { t } from './i18n.js';
+
 export const MAX_SHOTS = 6;
 
 export const cameraSupported = () => !!globalThis.navigator?.mediaDevices?.getUserMedia && globalThis.isSecureContext !== false;
 
 function cameraError(e) {
   const name = e?.name || '';
-  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Die Kamera wurde nicht erlaubt. Du kannst sie in den Browser-Einstellungen für diese Seite erlauben – oder ein Foto auswählen.';
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Keine Kamera gefunden. Wähl einfach ein Foto vom Bon aus.';
-  if (name === 'NotReadableError') return 'Die Kamera wird gerade von einer anderen App benutzt. Schließ sie und versuch es nochmal.';
-  return 'Die Kamera ließ sich nicht starten. Wähl einfach ein Foto vom Bon aus.';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return t('Die Kamera wurde nicht erlaubt. Du kannst sie in den Browser-Einstellungen für diese Seite erlauben – oder ein Foto auswählen.');
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return t('Keine Kamera gefunden. Wähl einfach ein Foto vom Bon aus.');
+  if (name === 'NotReadableError') return t('Die Kamera wird gerade von einer anderen App benutzt. Schließ sie und versuch es nochmal.');
+  return t('Die Kamera ließ sich nicht starten. Wähl einfach ein Foto vom Bon aus.');
 }
 
 async function openStream() {
@@ -43,10 +45,10 @@ export function frameStats(data, prev) {
 }
 
 export function hintFor({ light, moved }, { shots, torch }) {
-  if (light < 55) return { text: torch ? 'Zu dunkel – Lampe an oder mehr Licht' : 'Zu dunkel – mehr Licht bitte', ok: false };
-  if (light > 235) return { text: 'Zu hell – Spiegelung vermeiden', ok: false };
-  if (moved > 14) return { text: 'Ruhig halten …', ok: false };
-  return { text: shots ? 'Gut – nächstes Stück oder „Fertig“' : 'Gut so – jetzt auslösen', ok: true };
+  if (light < 55) return { text: torch ? t('Zu dunkel – Lampe an oder mehr Licht') : t('Zu dunkel – mehr Licht bitte'), ok: false };
+  if (light > 235) return { text: t('Zu hell – Spiegelung vermeiden'), ok: false };
+  if (moved > 14) return { text: t('Ruhig halten …'), ok: false };
+  return { text: shots ? t('Gut – nächstes Stück oder „Fertig“') : t('Gut so – jetzt auslösen'), ok: true };
 }
 
 let dialog;
@@ -54,7 +56,7 @@ function ui() {
   if (dialog) return dialog;
   dialog = document.createElement('dialog');
   dialog.id = 'cam';
-  dialog.setAttribute('aria-label', 'Kassenbon scannen');
+  dialog.setAttribute('aria-label', t('Kassenbon scannen'));
   dialog.innerHTML = `
     <div class="cam-stage">
       <video playsinline muted autoplay></video>
@@ -62,17 +64,17 @@ function ui() {
       <div class="cam-flash"></div>
     </div>
     <div class="cam-top">
-      <button class="cam-round" data-cam="close" aria-label="Schließen">✕</button>
-      <p class="cam-hint" role="status" aria-live="polite">Kamera startet …</p>
-      <button class="cam-round" data-cam="torch" aria-label="Lampe" aria-pressed="false" hidden>🔦</button>
+      <button class="cam-round" data-cam="close" aria-label="${t('Schließen')}">✕</button>
+      <p class="cam-hint" role="status" aria-live="polite">${t('Kamera startet …')}</p>
+      <button class="cam-round" data-cam="torch" aria-label="${t('Lampe')}" aria-pressed="false" hidden>🔦</button>
     </div>
     <div class="cam-bar">
-      <p class="cam-tip">Bon flach hinlegen und ganz in den Rahmen. Langer Bon? Oben anfangen, dann weiter unten noch ein Foto – etwas überlappend.</p>
+      <p class="cam-tip">${t('Bon flach hinlegen und ganz in den Rahmen. Langer Bon? Oben anfangen, dann weiter unten noch ein Foto – etwas überlappend.')}</p>
       <div class="cam-shots"></div>
       <div class="cam-controls">
-        <button class="cam-side" data-cam="gallery"><span>🖼️</span>Foto wählen</button>
-        <button class="cam-shutter" data-cam="shoot" aria-label="Foto aufnehmen"></button>
-        <button class="cam-side done" data-cam="done" disabled><span>✓</span>Fertig</button>
+        <button class="cam-side" data-cam="gallery"><span>🖼️</span>${t('Foto wählen')}</button>
+        <button class="cam-shutter" data-cam="shoot" aria-label="${t('Foto aufnehmen')}"></button>
+        <button class="cam-side done" data-cam="done" disabled><span>✓</span>${t('Fertig')}</button>
       </div>
     </div>
     <input type="file" accept="image/*" multiple hidden>`;
@@ -116,11 +118,11 @@ export async function scanCamera({ existing = [] } = {}) {
   const drawShots = () => {
     $('.cam-shots').innerHTML = shots.map((b, n) => {
       if (!urls.has(b)) urls.set(b, URL.createObjectURL(b));
-      return `<span class="cam-thumb"><img src="${urls.get(b)}" alt="Foto ${n + 1}"><button data-cam="drop" data-n="${n}" aria-label="Foto ${n + 1} löschen">✕</button></span>`;
+      return `<span class="cam-thumb"><img src="${urls.get(b)}" alt="${t('Foto {n}', { n: n + 1 })}"><button data-cam="drop" data-n="${n}" aria-label="${t('Foto {n} löschen', { n: n + 1 })}">✕</button></span>`;
     }).join('');
     const done = $('[data-cam="done"]');
     done.disabled = !shots.length;
-    done.innerHTML = `<span>✓</span>Fertig${shots.length ? ` (${shots.length})` : ''}`;
+    done.innerHTML = `<span>✓</span>${t('Fertig')}${shots.length ? ` (${shots.length})` : ''}`;
     $('[data-cam="shoot"]').disabled = shots.length >= MAX_SHOTS;
     $('.cam-tip').hidden = shots.length > 0;
   };

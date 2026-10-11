@@ -6,6 +6,7 @@ const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/store.js', 'js/products.js', 'js/pantry.js', 'js/receipt.js', 'js/recipes.js', 'js/share.js', 'js/ocr.js',
   'js/chef.js', 'js/rescue.js', 'js/config.js', 'js/receiptai.js', 'js/camera.js', 'js/neighbors.js', 'js/neighborapi.js', 'js/nachbarn.js', 'js/vendor/anthropic-sdk.js',
+  'js/i18n.js', 'js/lang/en.js', 'js/lang/tr.js', 'js/lang/ar.js', 'js/lang/fr.js', 'js/lang/es.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

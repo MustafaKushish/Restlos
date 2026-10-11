@@ -1,5 +1,6 @@
 // Speichert alles lokal auf dem Gerät (localStorage). Kein Konto, keine Cloud – Daten bleiben beim Nutzer.
 import { iso, uid, makeItem, sortByExpiry } from './pantry.js';
+import { t } from './i18n.js';
 
 const KEY = 'restlos:v1';
 const EMPTY = () => ({ items: [], log: [], shopping: [], settings: { flat: '', veg: false, remind: true, reminder: null, aiKey: '' } });
@@ -79,7 +80,7 @@ export function createStore(storage = globalThis.localStorage) {
     exportJson: () => JSON.stringify({ ...state, settings: { ...state.settings, aiKey: undefined } }, null, 1),
     importJson(text) {
       const data = JSON.parse(text);
-      if (!Array.isArray(data.items)) throw new Error('Keine Restlos-Sicherung');
+      if (!Array.isArray(data.items)) throw new Error(t('Keine Restlos-Sicherung'));
       state = { ...EMPTY(), ...data, settings: { ...EMPTY().settings, ...data.settings, aiKey: state.settings.aiKey } };
       save();
     },
