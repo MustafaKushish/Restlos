@@ -4,6 +4,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { CATS, PLACES, PRODUCTS } from '../js/products.js';
 import { RECIPES } from '../js/recipes.js';
+import { PROBLEMS, STATUS } from '../js/neighbors.js';
 
 const root = new URL('../', import.meta.url);
 const read = (f) => readFileSync(new URL(f, root), 'utf8');
@@ -57,6 +58,7 @@ export function uiKeys() {
   // Überschriften der Koch-Antwort (chef.js, HEADINGS)
   const head = read('js/chef.js').match(/const HEADINGS = \[([^\]]*)\]/)?.[1] || '';
   for (const m of head.matchAll(/'((?:[^'\\]|\\.)*)'|"([^"]*)"/g)) keys.add(m[1] ?? m[2]);
+  for (const s of [...Object.values(PROBLEMS), ...Object.values(STATUS), 'Ohne Straße']) keys.add(s);
   for (const c of Object.values(CATS)) keys.add(c.name);
   for (const p of Object.values(PLACES)) keys.add(p);
   const html = read('index.html');

@@ -34,14 +34,14 @@ const place = (p) => t(PLACES[p] ?? p);
 // ---------- kleine Helfer ----------
 let toastTimer;
 function toast(msg, undo, label = t('Rückgängig')) {
-  const t = $('#toast');
+  const el = $('#toast');
   // Ein offenes Sheet liegt in der obersten Ebene – der Hinweis muss mit hinein, sonst ist er verdeckt.
-  (sheet.open ? sheet : document.body).append(t);
-  t.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button data-action="undo">${esc(label)}</button>` : ''}`;
-  t.classList.add('show');
+  (sheet.open ? sheet : document.body).append(el);
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button data-action="undo">${esc(label)}</button>` : ''}`;
+  el.classList.add('show');
   toast.undo = undo;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), undo ? 6000 : 3000);
+  toastTimer = setTimeout(() => el.classList.remove('show'), undo ? 6000 : 3000);
 }
 
 function openSheet(html, onReady) {
@@ -856,12 +856,12 @@ async function install() {
 
 // ---------- Beispiel-Vorrat ----------
 function loadDemo() {
-  const t = iso();
+  const today = iso();
   const demo = [['Joghurt', 1, 0], ['Milch', 1, 2], ['Brot', 1, 1], ['Bananen', 4, 1], ['Zucchini', 2, 3], ['Paprika', 2, 4], ['Eier', 6, 12],
     ['Gouda', 1, 9], ['Hackfleisch', 1, 1], ['Spinat', 1, 0], ['Nudeln', 2, 300], ['Kartoffeln', 1, 20], ['Zwiebeln', 1, 25], ['Äpfel', 6, 14], ['Tomaten', 4, 2], ['Kidney Bohnen', 1, 400]];
-  store.add(demo.map(([name, qty, d]) => ({ name, qty, expires: addDays(t, d), bought: addDays(t, -2) })), 'demo');
+  store.add(demo.map(([name, qty, d]) => ({ name, qty, expires: addDays(today, d), bought: addDays(today, -2) })), 'demo');
   const log = [['Salat', 'gemuese', 'wasted', 1.29, 3], ['Joghurt', 'milch', 'used', 0.89, 5], ['Brot', 'brot', 'used', 2.49, 6], ['Bananen', 'obst', 'shared', 1.49, 8], ['Milch', 'milch', 'used', 1.19, 9], ['Salat', 'gemuese', 'wasted', 1.29, 12], ['Käse', 'kaese', 'used', 2.29, 15]];
-  for (const [name, cat, action, price, ago] of log) store.state.log.push({ id: `d${ago}`, name, pid: matchProduct(name)?.id, cat, qty: 1, price, action, date: addDays(t, -ago) });
+  for (const [name, cat, action, price, ago] of log) store.state.log.push({ id: `d${ago}`, name, pid: matchProduct(name)?.id, cat, qty: 1, price, action, date: addDays(today, -ago) });
   store.setting('demo', true);
   toast(t('Beispiel-Vorrat geladen'));
 }

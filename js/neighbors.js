@@ -4,10 +4,12 @@
 //
 // Grundsätze: freiwillig, alles öffentlich für die Stadt (keine privaten Nachrichten), nur Stadt und Straße
 // (keine Hausnummer), keine Telefonnummern, E-Mails oder Links, alte Beiträge verschwinden von selbst.
+import { t } from './i18n.js';
 
 export const OFFER_DAYS = 3; // Angebote verschwinden nach 3 Tagen
 export const MESSAGE_DAYS = 7; // Chat-Nachrichten nach 7 Tagen
 export const LIMITS = { title: 80, body: 500, nickname: 30, city: 60, street: 60 };
+// Anzeige über t() (i18n.js) – die Werte sind die deutschen Texte.
 export const STATUS = { offen: 'zu verschenken', reserviert: 'reserviert', vergeben: 'vergeben' };
 
 // ---------- Stadt und Straße ----------
@@ -51,7 +53,7 @@ export const PROBLEMS = {
   messenger: 'Bitte nicht zu WhatsApp & Co. wechseln – hier bleibt alles offen und sicher.',
   money: 'Hier wird nur verschenkt. Bitte keine Preise.',
   empty: 'Bitte etwas schreiben.',
-  long: `Bitte kürzer (höchstens ${LIMITS.body} Zeichen).`,
+  long: 'Bitte kürzer (höchstens {n} Zeichen).',
 };
 
 // Gibt die Gründe zurück, warum ein Text so nicht in den Chat darf (leer = alles gut).
@@ -69,7 +71,7 @@ export function checkText(text, { max = LIMITS.body } = {}) {
   return out;
 }
 
-export const problemText = (reasons) => reasons.map((r) => PROBLEMS[r] || r).join(' ');
+export const problemText = (reasons) => reasons.map((r) => (PROBLEMS[r] ? t(PROBLEMS[r], { n: LIMITS.body }) : r)).join(' ');
 
 // Spitzname: kurz, ohne Ziffernfolgen und ohne Kontaktdaten. Leer → „Nachbar:in“.
 export function cleanNickname(s) {
@@ -107,12 +109,12 @@ export function byStreet(offers) {
 // „vor 5 Min.“, „vor 2 Std.“, „gestern“
 export function ago(iso, now = new Date()) {
   const min = Math.max(0, Math.round((now - new Date(iso)) / 6e4));
-  if (min < 1) return 'gerade eben';
-  if (min < 60) return `vor ${min} Min.`;
+  if (min < 1) return t('gerade eben');
+  if (min < 60) return t('vor {n} Min.', { n: min });
   const h = Math.round(min / 60);
-  if (h < 24) return `vor ${h} Std.`;
+  if (h < 24) return t('vor {n} Std.', { n: h });
   const d = Math.round(h / 24);
-  return d === 1 ? 'gestern' : `vor ${d} Tagen`;
+  return d === 1 ? t('gestern') : t('vor {n} Tagen', { n: d });
 }
 
 // ---------- KI-Koch als Aufpasser ----------
@@ -168,7 +170,7 @@ export async function askModerator({ apiKey, server, text, recent = [], fetch = 
       if (res.ok) {
         const data = await res.json();
         // Wenn Googles eigener Filter die Nachricht schon blockt, ist sie sicher nicht in Ordnung.
-        if (data.promptFeedback?.blockReason) return { verdict: 'stopp', grund: 'So kann die Nachricht nicht in den Chat. Bitte freundlich formulieren.', vorschlag: '' };
+        if (data.promptFeedback?.blockReason) return { verdict: 'stopp', grund: t('So kann die Nachricht nicht in den Chat. Bitte freundlich formulieren.'), vorschlag: '' };
         return parseVerdict(geminiText(data));
       }
       if (!(res.status === 404 || res.status === 429 || res.status >= 500)) return null;

@@ -1,5 +1,5 @@
 // Offline: Die App selbst liegt im Cache, die Daten sowieso auf dem Gerät.
-const CACHE = 'restlos-v8';
+const CACHE = 'restlos-v9';
 // Fahrplan der Erinnerungen, den die App hier ablegt (siehe syncReminders in app.js). Bleibt bei Updates erhalten.
 const REMIND_CACHE = 'restlos-erinnerung';
 const SHELL = [
