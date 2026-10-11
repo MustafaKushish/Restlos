@@ -6,9 +6,10 @@
 |---|---|
 | Eintippen nervt | **Kassenbon scannen.** Eigene Kamera-Ansicht mit Rahmen und Live-Hinweisen (zu dunkel, ruhig halten), Lampe, und mehrere Fotos für lange Bons. Die KI (Gemini) liest jede Zeile: Lebensmittel, Mengen, Preise, geschätzte Haltbarkeit, dazu Drogerie und Pfand. Restlos gleicht die Summe mit dem Endbetrag auf dem Bon ab und sagt, ob etwas fehlt. Stückzahlen und Namen lassen sich vor dem Übernehmen korrigieren. Fotografiert man statt des Bons die Einkäufe selbst, zählt die KI die Produkte. Ohne KI liest das Gerät den Bon selbst (Texterkennung). |
 | Niemand tippt Ablaufdaten ein | **Haltbarkeit wird geschätzt** (über 80 Produkte, ab Kaufdatum). „Angebrochen“ und „Einfrieren“ passen sie an. |
-| Man vergisst, was da ist | **Ampel-Übersicht** nach Dringlichkeit, Hinweis beim Öffnen, Erinnerungen im Handy-Kalender (.ics) |
+| Man vergisst, was da ist | **Ampel-Übersicht** nach Dringlichkeit und **sparsame Erinnerungen**: höchstens eine Mitteilung am Tag, gebündelt („3 Sachen laufen bald ab“), 2 Tage vor Ablauf, jede Sache nur einmal, nicht nachts. Dazu Erinnerungen im Handy-Kalender (.ics). |
+| Was mache ich damit, bevor ich es wegwerfe? | **Retten-Tipps** zu jeder Sache, die bald abläuft (z. B. Brot → Arme Ritter oder einfrieren, Spinat → kurz blanchieren und einfrieren), dazu ein passendes Reste-Rezept und „Rezept mit …“ vom KI-Koch. |
 | Was koche ich mit den Resten? | **Reste-Rezepte**, die zuerst das Ablaufende verbrauchen. Benannt nach deinen Resten („Frittata mit Zucchini & Paprika“). |
-| Ich kann nicht kochen | **KI-Koch:** Einfach schreiben oder sagen, was da ist. Ein Profikoch (KI, kostenlos über Google Gemini) macht daraus ein Rezept für Anfänger: zuerst das, was bald abläuft, jeder Schritt mit Hitze, Zeit und woran man erkennt, dass es passt. Rückfragen wie „ohne Ofen?“, andere Ideen per Antippen, danach „Gekocht!“ trägt die Zutaten aus. |
+| Ich kann nicht kochen | **KI-Koch:** Einfach schreiben oder sagen, was da ist. Ein Profikoch (KI, kostenlos über Google Gemini) macht daraus ein Rezept für Anfänger: zuerst das, was bald abläuft, jeder Schritt mit Hitze, Zeit und woran man erkennt, dass es passt. Rückfragen wie „ohne Ofen?“, andere Ideen per Antippen, danach „Gekocht!“ trägt die Zutaten aus. Unter *Rezepte* schaut der Koch selbst in den Vorrat und schlägt drei neue Gerichte vor (neu nur, wenn sich ändert, was bald weg muss). |
 | Zu viel eingekauft | **Einkaufsliste mit Warnung** „Hast du noch: 6× Eier (noch 12 Tage)“. Abgehakte Sachen wandern direkt in den Vorrat. |
 | Schaffe ich nicht mehr | **Im Hausflur teilen:** fertiger Text für die Haus-WhatsApp-Gruppe oder nebenan.de, Aushang mit Abreißzetteln zum Drucken |
 | Bringt das was? | **Bilanz:** Gerettet-Quote, Euro im Müll, CO₂, „am häufigsten weggeworfen“ mit Tipp |
@@ -35,6 +36,7 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
   - `js/pantry.js` – Datum, Status (MHD vs. Verbrauchsdatum), Bilanz, Freitext/Sprache
   - `js/recipes.js` – 36 Rezepte und die Auswahl nach Dringlichkeit
   - `js/share.js` – Teilen-Text, Aushang, Kalender-Erinnerungen
+  - `js/rescue.js` – Retten-Tipps je Lebensmittel, Regeln für sparsame Erinnerungen und ihr Fahrplan für den Hintergrund
   - `js/store.js` – Speicher mit Rückgängig
   - `js/receiptai.js` – Kassenbon per KI lesen, Summen-Abgleich
   - `js/chef.js` – KI-Koch: Anweisungen an den Koch, Anfrage (Gemini/Claude), sichere Darstellung der Antwort
@@ -45,7 +47,7 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
 ## Fahrplan
 
 1. **Haushalt teilen:** ein gemeinsamer Vorrat für alle im Haushalt. Braucht einen kleinen Server mit Sync.
-2. **Echte Push-Erinnerungen** auch bei geschlossener App (Web Push, auf dem iPhone ab iOS 16.4 für installierte Web-Apps)
+2. **Push-Erinnerungen für alle Geräte:** Heute kommen Erinnerungen im Hintergrund nur bei der installierten App in Chrome/Edge (Android, Computer), sonst beim Öffnen. Für das iPhone bräuchte es Web Push mit einem kleinen Server.
 3. **KI-Bon-Erkennung** bei schlechten Fotos über den Koch-Server
 4. **Barcode scannen** + Open Food Facts für Produkte ohne Bon (z. B. Geschenke, Vorräte)
 5. **Hausflur-Börse:** echte Angebote für Nachbarn im selben Haus (Einladungslink oder QR-Code am schwarzen Brett, Chat, „reserviert“)
