@@ -44,9 +44,15 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           node -e '
-            const fs = require("fs"), f = "_site/js/config.js", k = process.env.GEMINI_API_KEY || "";
+            const fs = require("fs"), f = "_site/js/config.js";
+            // Beim Einfügen rutschen leicht Leerzeichen, Zeilenumbrüche, Anführungszeichen oder „GEMINI_API_KEY=“ mit hinein.
+            const k = (process.env.GEMINI_API_KEY || "").trim().replace(/^GEMINI_API_KEY\s*[=:]\s*/, "").replace(/^["\x27]+|["\x27]+$/g, "").trim();
             if (!k) { console.log("Kein GEMINI_API_KEY-Secret – Nutzer tragen selbst einen Schlüssel ein."); process.exit(0); }
-            if (!/^[A-Za-z0-9_-]+$/.test(k)) { console.error("GEMINI_API_KEY sieht ungültig aus"); process.exit(1); }
+            if (!/^[A-Za-z0-9._-]+$/.test(k)) {
+              const bad = [/\s/.test(k) && "Leerzeichen/Zeilenumbruch in der Mitte", /["\x27`]/.test(k) && "Anführungszeichen", /[=:]/.test(k) && "= oder :", /[^\x00-\x7f]/.test(k) && "Sonderzeichen außerhalb ASCII"].filter(Boolean);
+              console.error("GEMINI_API_KEY sieht ungültig aus (Länge " + k.length + (bad.length ? ", enthält: " + bad.join(", ") : "") + "). Bitte nur den Schlüssel selbst einfügen, z. B. AIza…");
+              process.exit(1);
+            }
             const s = fs.readFileSync(f, "utf8"), t = s.replace("appKey: \x27\x27", "appKey: " + JSON.stringify(k));
             if (s === t) { console.error("appKey nicht gefunden"); process.exit(1); }
             fs.writeFileSync(f, t); console.log("App-Schlüssel eingesetzt.");
