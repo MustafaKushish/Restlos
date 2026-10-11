@@ -1,6 +1,6 @@
 // Kassenbon mit KI lesen: Das Foto geht an Gemini (bzw. in der claude.ai-Vorschau an Claude), zurück kommt
 // eine saubere Liste der Lebensmittel – deutlich genauer als die Texterkennung auf dem Gerät, die bleibt als Rückfall.
-import { GEMINI_MODELS, GEMINI_URL } from './chef.js';
+import { GEMINI_MODELS, GEMINI_URL, nextModel } from './chef.js';
 
 export const RECEIPT_PROMPT = `Lies diesen deutschen Kassenbon (Foto). Gib nur Lebensmittel und Getränke zurück.
 Lass weg: Pfand, Leergut, Tüten, Drogerie- und Haushaltsartikel, Summen, Zahlungszeilen. Rabatte ziehst du vom Preis des Artikels ab.
@@ -93,7 +93,7 @@ export async function geminiJSON(image, { apiKey, server, fetch = globalThis.fet
       : await fetch(`${GEMINI_URL}/${model}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(receiptRequest(image)) });
     if (res.ok) return JSON.parse(textOf(await res.json()) || '{}');
     last = res.status;
-    if (server || (res.status !== 404 && res.status !== 429)) break;
+    if (server || !nextModel(res.status)) break;
   }
   throw new Error(`KI-Bonerkennung nicht erreichbar (Fehler ${last})`);
 }
