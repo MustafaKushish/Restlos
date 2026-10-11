@@ -37,7 +37,7 @@ jobs:
       - name: Web-App zusammenstellen
         run: |
           mkdir -p _site
-          cp -r index.html manifest.webmanifest sw.js css js icons _site/
+          cp -r index.html manifest.webmanifest sw.js css js icons widgets _site/
           touch _site/.nojekyll
       - name: Gemini-Schlüssel der App einsetzen (falls als Secret hinterlegt)
         env:

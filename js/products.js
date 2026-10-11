@@ -214,3 +214,42 @@ export function searchProducts(query, limit = 6) {
   }
   return hits.sort((a, b) => b[0] - a[0]).slice(0, limit).map((h) => h[1]);
 }
+
+// Tippfehler: Abstand zweier Wörter (Buchstaben einfügen, löschen, ersetzen, vertauschen).
+export function distance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+
+// Verschriebenes Lebensmittel erkennen: „Jogurt“ → Joghurt, „Brokoli“ → Brokkoli, „Mozarella“ → Mozzarella.
+// Vorsichtig: ein Fehler bei kurzen Wörtern, zwei erst ab 8 Buchstaben – „Salami“ wird nicht zu „Salat“.
+export function correctProduct(text) {
+  const q = norm(text);
+  if (q.length < 4) return null;
+  const allowed = q.length >= 8 ? 2 : 1;
+  const names = (p) => [p.name, localNames[p.id]].filter(Boolean).map(norm);
+  // Schon erkannt (z. B. über ein Suchwort), aber anders geschrieben als der richtige Name?
+  const hit = matchProduct(text);
+  // Einzahl/Mehrzahl und Umlaute sind kein Fehler: Banane/Bananen, Apfel/Äpfel bleiben, wie getippt.
+  const fold = (s) => s.replace(/(?<=[aou])e/g, '');
+  const fine = (n) => n.startsWith(q) || q.startsWith(n) || fold(n).startsWith(fold(q)) || fold(q).startsWith(fold(n));
+  if (hit) return names(hit).some(fine) ? null : names(hit).some((n) => distance(q, n) <= allowed) ? hit : null;
+  let best = null;
+  let bestDist = allowed + 1;
+  for (const p of PRODUCTS) {
+    for (const n of [...names(p), ...p.keys.filter((k) => !k.startsWith('=')).map(norm)]) {
+      if (Math.abs(n.length - q.length) > allowed || n.length < 4) continue;
+      const dist = distance(q, n);
+      if (dist < bestDist) { bestDist = dist; best = p; }
+    }
+  }
+  return best;
+}

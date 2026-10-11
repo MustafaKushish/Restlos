@@ -626,6 +626,8 @@ export default {
     "Vollkorn macht länger satt – nur falls du Lust hast, es mal zu probieren.": "Le complet rassasie plus longtemps – seulement si tu as envie d’essayer.",
     "Warst du einkaufen?": "Tu as fait des courses ?",
     "Windows": "Windows",
+    "Hier ist etwas schiefgelaufen.": "Un problème est survenu ici.",
+    "Neu laden": "Recharger",
   },
   products: {
     "bananen": "Bananes",

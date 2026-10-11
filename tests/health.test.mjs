@@ -22,3 +22,13 @@ test('Süßes wird gegönnt, bei Limo gibt es einen Durst-Tipp', () => {
   assert.match(healthTips(['Gummibärchen', 'Banane'], { today: T })[0].text, /gönn es dir/);
   assert.match(healthTips(['Chips', 'Cola', 'Gurke'], { today: T })[0].text, /Wasser/);
 });
+
+test('Tippfehler im Einkaufsfeld werden erkannt, richtige Wörter bleiben', async () => {
+  const { correctProduct } = await import('../js/products.js');
+  const fix = (w) => correctProduct(w)?.name ?? null;
+  assert.equal(fix('Jogurt'), 'Joghurt');
+  assert.equal(fix('Brokoli'), 'Brokkoli');
+  assert.equal(fix('Zwibeln'), 'Zwiebeln');
+  assert.equal(fix('Mozarella'), 'Mozzarella');
+  for (const ok of ['Joghurt', 'Banane', 'Tomate', 'Apfel', 'Salami', 'Salz', 'Milch', 'Klopapier']) assert.equal(fix(ok), null, ok);
+});

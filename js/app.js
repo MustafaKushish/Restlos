@@ -1,6 +1,6 @@
 // Restlos – Oberfläche. Ansichten: Vorrat, Rezepte (mit KI-Koch), Einkauf, Teilen, Bilanz.
 import { createStore } from './store.js';
-import { CATS, PLACES, PRODUCTS, byId, matchProduct, searchProducts } from './products.js';
+import { CATS, PLACES, PRODUCTS, byId, matchProduct, searchProducts, correctProduct } from './products.js';
 import { iso, addDays, daysLeft, status, stats, openItem, parseFreeText, makeItem } from './pantry.js';
 import { parseReceipt } from './receipt.js';
 import { suggest } from './recipes.js';
@@ -284,8 +284,29 @@ function updateAddPreview() {
   $('[data-action="add-confirm"]').textContent = items.length > 1 ? t('{n} Sachen hinzufügen', { n: items.length }) : t('Hinzufügen');
   // Vorschläge zum letzten angefangenen Wort
   const last = input.value.split(/,|،|\bund\b|\band\b/).pop().trim().replace(/^\d+\s*/, '');
-  const hits = last.length >= 2 ? searchProducts(last, 4).filter((p) => productName(p.id).toLowerCase() !== last.toLowerCase()) : [];
+  const hits = suggestFor(last, 4);
   $('#add-suggest').innerHTML = hits.map((p) => `<button class="chip" data-action="complete" data-name="${esc(productName(p.id))}">${p.emoji} ${esc(productName(p.id))}</button>`).join('');
+}
+
+// Vorschläge beim Tippen: passende Lebensmittel, sonst das wahrscheinlich gemeinte bei einem Tippfehler.
+function suggestFor(text, limit) {
+  if (text.length < 2) return [];
+  const hits = searchProducts(text, limit);
+  const fix = correctProduct(text);
+  return [...new Set([...(fix ? [fix] : []), ...hits])].filter((p) => productName(p.id).toLowerCase() !== text.toLowerCase()).slice(0, limit);
+}
+
+// Einkaufsliste: beim Tippen mitschreiben (Vorschläge) und warnen, wenn es noch zu Hause ist.
+function updateShopInput(inStock) {
+  const input = $('#shop-text');
+  if (!input) return;
+  const last = input.value.split(/,|،|\bund\b|\band\b/).pop().trim().replace(/^\d+\s*/, '');
+  const hits = suggestFor(last, 5);
+  $('#shop-suggest').innerHTML = hits.map((p) => `<button type="button" class="chip" data-action="shop-complete" data-name="${esc(productName(p.id))}">${p.emoji} ${esc(productName(p.id))}</button>`).join('');
+  const have = last.length > 2 ? inStock(last) : [];
+  const warn = $('#shop-warn');
+  warn.hidden = !have.length;
+  warn.innerHTML = have.length ? `🤔 ${t('Hast du noch:')} ${have.map((i) => `<b>${i.qty > 1 ? `${i.qty}× ` : ''}${nm(i)}</b> (${status(i).label})`).join(', ')}` : '';
 }
 
 function listen(input = $('#add-text'), onUpdate = updateAddPreview, mic = $('.mic')) {
@@ -732,9 +753,11 @@ function renderEinkauf() {
   view.innerHTML = `
     <section class="hero"><h1>${t('Einkaufsliste')}</h1><p>${t('Restlos warnt, wenn du etwas schon zu Hause hast.')}</p></section>
     <form class="input-row" data-form="shop">
-      <input id="shop-text" type="text" autocomplete="off" enterkeyhint="send" placeholder="${esc(t('Was brauchst du?'))}" aria-label="${t('Neuer Eintrag')}">
+      <input id="shop-text" type="text" autocomplete="off" autocorrect="on" spellcheck="true" enterkeyhint="send" placeholder="${esc(t('Was brauchst du?'))}" aria-label="${t('Neuer Eintrag')}">
+      <button type="button" class="icon-btn mic" data-action="shop-listen" aria-label="${t('Sprechen')}">🎤</button>
       <button class="icon-btn" aria-label="${t('Hinzufügen')}">＋</button>
     </form>
+    <div id="shop-suggest" class="chips"></div>
     <p id="shop-warn" class="hint" hidden></p>
     ${healthCard(list.filter((s) => !s.done).map((s) => s.name), items)}
     ${list.length ? `<ul class="list">${list.map((s) => {
@@ -753,14 +776,10 @@ function renderEinkauf() {
     <h3 class="group">${t('Oft gebraucht')}</h3>
     <div class="chips wrap">${basics.map((p) => `<button class="chip" data-action="shop-quick" data-name="${esc(productName(p.id))}">${p.emoji} ${esc(productName(p.id))}</button>`).join('')}</div>
   `;
-  const input = $('#shop-text');
-  input.addEventListener('input', () => {
-    const have = input.value.trim().length > 2 ? inStock(input.value.trim()) : [];
-    const warn = $('#shop-warn');
-    warn.hidden = !have.length;
-    warn.innerHTML = have.length ? `🤔 ${t('Hast du noch:')} ${have.map((i) => `<b>${i.qty > 1 ? `${i.qty}× ` : ''}${nm(i)}</b> (${status(i).label})`).join(', ')}` : '';
-  });
+  shopInStock = inStock;
+  $('#shop-text').addEventListener('input', () => updateShopInput(inStock));
 }
+let shopInStock = () => [];
 
 // Kleine Gesund-Tipps – nur Anregungen, nichts wird verboten. Ausblenden mit einem Tipp.
 function healthCard(names, items) {
@@ -1018,6 +1037,18 @@ const actions = {
   // Einkauf
   'shop-toggle': (el) => store.toggleShopping(el.dataset.id),
   'shop-remove': (el) => store.removeShopping(el.dataset.id),
+  'shop-listen': (el) => listen($('#shop-text'), () => updateShopInput(shopInStock), el),
+  // Vorschlag antippen: das angefangene Wort wird ersetzt und die Sache gleich auf die Liste gesetzt.
+  'shop-complete': (el) => {
+    const input = $('#shop-text');
+    const parts = input.value.split(/(,|،|\bund\b|\band\b)/);
+    const qty = parseInt(parts.at(-1).trim(), 10) || 1;
+    parts.pop();
+    const rest = parts.join('').replace(/(,|،|\bund\b|\band\b)\s*$/, '').trim();
+    store.addShopping(el.dataset.name, qty);
+    for (const x of parseFreeText(rest)) store.addShopping(fixName(x.name), x.qty);
+    $('#shop-text')?.focus();
+  },
   'shop-quick': (el) => { store.addShopping(el.dataset.name); toast(t('{name} auf der Liste', { name: el.dataset.name })); },
   'shop-to-pantry': () => { const added = store.shoppingToPantry(); toast(tn(added.length, '1 Sache in den Vorrat übernommen', '{n} Sachen in den Vorrat übernommen')); },
   // Teilen
@@ -1063,6 +1094,7 @@ const actions = {
   import: () => $('#backup').click(),
   reset: () => { if (confirm(t('Wirklich alles löschen? Vorrat, Einkaufsliste und Bilanz.'))) { store.reset(); toast(t('Alles gelöscht')); } },
   language: () => languageSheet(),
+  reload: () => location.reload(),
   health: () => { const on = store.state.settings.health === false; store.setting('health', on); toast(t(on ? 'Gesund-Tipps sind an' : 'Gesund-Tipps ausgeblendet')); },
   'home-guide': () => homeSheet(),
   'set-lang': (el) => {
@@ -1142,9 +1174,22 @@ document.addEventListener('submit', (e) => {
   const input = $('#shop-text');
   const text = input.value;
   input.value = '';
-  for (const x of parseFreeText(text)) store.addShopping(x.name, x.qty);
+  const fixed = [];
+  for (const x of parseFreeText(text)) {
+    const name = fixName(x.name);
+    if (name !== x.name) fixed.push([x.name, name]);
+    store.addShopping(name, x.qty);
+  }
   $('#shop-text')?.focus();
+  // Korrigiert wird nur bei klaren Tippfehlern – und es lässt sich zurücknehmen.
+  if (fixed.length) toast(`✏️ ${fixed.map(([a, b]) => `${a} → ${b}`).join(', ')}`, () => fixed.forEach(([a, b]) => store.renameShopping(b, a)));
 });
+
+// Klarer Tippfehler bei einem bekannten Lebensmittel? Dann den richtigen Namen nehmen („Jogurt“ → Joghurt).
+function fixName(name) {
+  const p = correctProduct(name);
+  return p ? productName(p.id) : name;
+}
 
 // Entwurf für den Koch nicht verlieren, wenn die Ansicht neu gezeichnet wird.
 document.addEventListener('input', (e) => { if (e.target.id === 'chef-text') chat.draft = e.target.value; });
@@ -1167,6 +1212,14 @@ const ROUTES = { vorrat: renderVorrat, rezepte: renderRezepte, koch: renderKoch,
 const current = () => location.hash.replace('#/', '').split('?')[0] || 'vorrat';
 
 function render() {
+  try { draw(); } catch (e) {
+    // Lieber ein Knopf als eine weiße Seite.
+    console.error(e);
+    view.innerHTML = `<section class="empty"><div class="big">🔄</div><p>${t('Hier ist etwas schiefgelaufen.')}</p><button class="btn primary" data-action="reload">↻ ${t('Neu laden')}</button></section>`;
+  }
+}
+
+function draw() {
   const route = ROUTES[current()] ? current() : 'vorrat';
   // Eingaben nicht beim Tippen wegrendern (z. B. Klingelschild)
   const active = document.activeElement;
@@ -1292,8 +1345,18 @@ function openFromLink() {
 window.addEventListener('hashchange', openFromLink);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Neue Version da? Dann einmal neu laden – so reicht ein Öffnen, nicht zweimal Schließen.
+  const updating = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!updating || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
+window.restlosReady = true;
+try { sessionStorage.removeItem('restlos:retry'); } catch { /* privater Modus */ }
 store.subscribe(syncReminders);
 syncReminders();
 if (remindOn()) backgroundReminders();

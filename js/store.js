@@ -57,6 +57,10 @@ export function createStore(storage = globalThis.localStorage) {
       else state.shopping.push({ id: uid(), name, qty, done: false });
       save();
     },
+    renameShopping(from, to) {
+      const item = state.shopping.find((s) => s.name === from && !s.done);
+      if (item) { item.name = to; save(); }
+    },
     toggleShopping(id) {
       state.shopping = state.shopping.map((s) => (s.id === id ? { ...s, done: !s.done } : s));
       save();

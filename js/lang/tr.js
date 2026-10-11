@@ -626,6 +626,8 @@ export default {
     "Vollkorn macht länger satt – nur falls du Lust hast, es mal zu probieren.": "Tam tahıl daha uzun tok tutar – sadece denemek istersen.",
     "Warst du einkaufen?": "Alışverişe mi gittin?",
     "Windows": "Windows",
+    "Hier ist etwas schiefgelaufen.": "Burada bir şeyler ters gitti.",
+    "Neu laden": "Yeniden yükle",
   },
   products: {
     "bananen": "Muz",
