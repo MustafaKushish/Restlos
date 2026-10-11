@@ -628,6 +628,12 @@ export default {
     "Windows": "Windows",
     "Hier ist etwas schiefgelaufen.": "Algo ha salido mal aquí.",
     "Neu laden": "Recargar",
+    "Betrag wählen": "Elige un importe",
+    "Eigener Betrag": "Otro importe",
+    "{euro} mit PayPal geben": "Dar {euro} con PayPal",
+    "Apple Pay · Google Pay · Karte": "Apple Pay · Google Pay · Tarjeta",
+    "Den Betrag gibst du dort noch einmal ein.": "Allí vuelves a introducir el importe.",
+    "Bitte einen Betrag zwischen 1 und 500 € eingeben": "Introduce un importe entre 1 y 500 €",
   },
   products: {
     "bananen": "Plátanos",

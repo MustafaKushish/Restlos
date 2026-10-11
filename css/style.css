@@ -262,6 +262,24 @@ a.set { color: inherit; text-decoration: none; }
 .mission-mine { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); }
 .mission-support { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .mission-support p { margin: 6px 0 0; font-size: 15px; color: var(--muted); }
+.donate { margin-top: 14px; }
+.donate .field { margin-bottom: 6px; }
+.donate-amounts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.donate-amounts .chip { border-radius: 12px; padding: 10px 0; font-size: 16px; font-weight: 650; text-align: center; transition: background 0.15s, color 0.15s, transform 0.15s; }
+.donate-amounts .chip:active { transform: scale(0.96); }
+.donate-free {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 0 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); transition: border-color 0.15s, box-shadow 0.15s;
+}
+.donate-free.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.donate-free input[type="text"] { border: 0; padding: 10px 0; min-height: 44px; background: none; outline: none; box-shadow: none; }
+.donate-free input:focus { outline: none; }
+.donate-free span { color: var(--muted); font-weight: 600; }
+.donate .btn b { font-weight: 750; }
+.pay-btn { background: #000; color: #fff; border-color: #000; }
+@media (prefers-color-scheme: dark) { .pay-btn { background: #fff; color: #000; border-color: #fff; } }
+.mission-support p.center { text-align: center; font-size: 13px; }
+@media (min-width: 700px) { .donate-amounts { grid-template-columns: repeat(4, 1fr) 1.6fr; } .donate-free { grid-column: auto; } }
 .mission-nudge { position: relative; background: var(--accent-soft); border-color: transparent; padding-inline-end: 48px; animation: rise 0.35s ease both; }
 .mission-nudge p { margin: 4px 0 6px; }
 .mission-nudge .sheet-close { top: 8px; inset-inline-end: 8px; }

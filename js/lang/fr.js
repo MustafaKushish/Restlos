@@ -628,6 +628,12 @@ export default {
     "Windows": "Windows",
     "Hier ist etwas schiefgelaufen.": "Un problème est survenu ici.",
     "Neu laden": "Recharger",
+    "Betrag wählen": "Choisir un montant",
+    "Eigener Betrag": "Autre montant",
+    "{euro} mit PayPal geben": "Donner {euro} avec PayPal",
+    "Apple Pay · Google Pay · Karte": "Apple Pay · Google Pay · Carte",
+    "Den Betrag gibst du dort noch einmal ein.": "Tu saisiras le montant une nouvelle fois là-bas.",
+    "Bitte einen Betrag zwischen 1 und 500 € eingeben": "Merci de saisir un montant entre 1 et 500 €",
   },
   products: {
     "bananen": "Bananes",

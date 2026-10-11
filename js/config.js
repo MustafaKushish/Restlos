@@ -13,4 +13,7 @@ export const CONFIG = {
   // PayPal-Link für „Restlos unterstützen“ (Spenden-Seite von PayPal; dort geht auch Karte, Apple Pay und Google Pay,
   // soweit PayPal es anbietet). Mit eigenem paypal.me-Namen ginge auch 'https://paypal.me/deinname'.
   paypal: 'https://www.paypal.com/donate/?business=mustafa.al-zurgany%40web.de&currency_code=EUR&item_name=Restlos%20unterst%C3%BCtzen',
+  // Apple Pay, Google Pay und Karte: Stripe-„Payment Link“ mit frei wählbarem Betrag (beginnt mit https://buy.stripe.com/).
+  // Leer lassen, solange es ihn nicht gibt – dann bleibt der Knopf ausgeblendet.
+  cardPay: '',
 };

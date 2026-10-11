@@ -628,6 +628,12 @@ export default {
     "Windows": "Windows",
     "Hier ist etwas schiefgelaufen.": "Something went wrong here.",
     "Neu laden": "Reload",
+    "Betrag wählen": "Choose an amount",
+    "Eigener Betrag": "Other amount",
+    "{euro} mit PayPal geben": "Give {euro} with PayPal",
+    "Apple Pay · Google Pay · Karte": "Apple Pay · Google Pay · Card",
+    "Den Betrag gibst du dort noch einmal ein.": "You’ll enter the amount again there.",
+    "Bitte einen Betrag zwischen 1 und 500 € eingeben": "Please enter an amount between €1 and €500",
   },
   products: {
     'bananen': 'Bananas',
