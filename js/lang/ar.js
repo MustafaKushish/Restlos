@@ -546,7 +546,7 @@ export default {
     "Meine Straße": "شارعي",
     "Melden": "إبلاغ",
     "Melden oder blockieren": "إبلاغ أو حظر",
-    "Mitmachen": "شارك",
+    "Mitmachen": "انضمّ",
     "Nachbar:in": "جار/جارة",
     "Nachbarn": "الجيران",
     "Nachbarschafts-Börse": "سوق الجيران",
