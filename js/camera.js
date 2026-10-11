@@ -69,7 +69,7 @@ function ui() {
       <button class="cam-round" data-cam="torch" aria-label="${t('Lampe')}" aria-pressed="false" hidden>🔦</button>
     </div>
     <div class="cam-bar">
-      <p class="cam-tip">${t('Bon flach hinlegen und ganz in den Rahmen. Langer Bon? Oben anfangen, dann weiter unten noch ein Foto – etwas überlappend.')}</p>
+      <p class="cam-tip">${t('Bon, Bildschirm der SB-Kasse oder einfach deine Einkäufe in den Rahmen. Langer Bon? Oben anfangen, dann weiter unten noch ein Foto.')}</p>
       <div class="cam-shots"></div>
       <div class="cam-controls">
         <button class="cam-side" data-cam="gallery"><span>🖼️</span>${t('Foto wählen')}</button>

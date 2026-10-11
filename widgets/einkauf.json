@@ -1,0 +1,14 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "${shopTitle}", "weight": "Bolder", "size": "Medium" },
+    { "type": "TextBlock", "$data": "${shop}", "text": "${text}", "wrap": true, "spacing": "None" },
+    { "type": "TextBlock", "text": "${dueTitle}", "weight": "Bolder", "spacing": "Medium" },
+    { "type": "TextBlock", "$data": "${due}", "text": "${text}", "wrap": true, "spacing": "None" }
+  ],
+  "actions": [
+    { "type": "Action.Execute", "title": "${open}", "verb": "open" }
+  ]
+}
