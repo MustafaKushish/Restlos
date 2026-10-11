@@ -1254,7 +1254,6 @@ window.addEventListener('hashchange', () => {
   if (current() !== lastRoute) { window.scrollTo(0, 0); lastRoute = current(); }
 });
 store.subscribe(render);
-render();
 
 // ---------- Erinnerungen ----------
 // Sparsam: höchstens eine am Tag, gebündelt, jede Sache nur einmal (rescue.js).
@@ -1263,8 +1262,8 @@ render();
 // regelmäßige Hintergrund-Aufgaben erlaubt (installierte App in Chrome/Edge). Sonst erinnert Restlos beim Öffnen.
 const REMIND_CACHE = 'restlos-erinnerung';
 const REMIND_FILE = 'erinnerung.json';
-const remindOn = () => 'Notification' in window && Notification.permission === 'granted' && store.state.settings.remind !== false;
-const remindAsk = () => 'Notification' in window && Notification.permission === 'default' && store.state.settings.remind !== false;
+function remindOn() { return 'Notification' in window && Notification.permission === 'granted' && store.state.settings.remind !== false; }
+function remindAsk() { return 'Notification' in window && Notification.permission === 'default' && store.state.settings.remind !== false; }
 
 async function readRemindCache() {
   try { return await (await (await caches.open(REMIND_CACHE)).match(REMIND_FILE))?.json() ?? null; } catch { return null; }
@@ -1355,6 +1354,9 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
+// Erst jetzt zeichnen: Alles oben ist definiert. (Früher lief das mittendrin – mit Sachen, die bald ablaufen,
+// fehlten dann noch die Erinnerungs-Helfer, und Vorrat oder Bilanz blieben beim Start leer.)
+render();
 window.restlosReady = true;
 try { sessionStorage.removeItem('restlos:retry'); } catch { /* privater Modus */ }
 store.subscribe(syncReminders);
