@@ -626,6 +626,8 @@ export default {
     "Vollkorn macht länger satt – nur falls du Lust hast, es mal zu probieren.": "Wholegrain keeps you full for longer – only if you fancy trying it.",
     "Warst du einkaufen?": "Been shopping?",
     "Windows": "Windows",
+    "Hier ist etwas schiefgelaufen.": "Something went wrong here.",
+    "Neu laden": "Reload",
   },
   products: {
     'bananen': 'Bananas',

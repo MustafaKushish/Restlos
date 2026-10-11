@@ -1,5 +1,5 @@
 // Offline: Die App selbst liegt im Cache, die Daten sowieso auf dem Gerät.
-const CACHE = 'restlos-v10';
+const CACHE = 'restlos-v11';
 // Fahrplan der Erinnerungen, den die App hier ablegt (siehe syncReminders in app.js). Bleibt bei Updates erhalten.
 const REMIND_CACHE = 'restlos-erinnerung';
 const SHELL = [
@@ -11,7 +11,11 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // Jede Datei einzeln: Fehlt eine, wird die neue Version trotzdem aktiv (sonst bliebe die alte hängen).
+  // cache: 'reload' holt alles frisch vom Server, nicht aus dem Browser-Zwischenspeicher.
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => Promise.allSettled(SHELL.map((f) => c.add(new Request(f, { cache: 'reload' })))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -23,16 +27,20 @@ self.addEventListener('activate', (e) => {
 });
 
 // Eigene Dateien: erst Netz (damit Updates ankommen), offline aus dem Cache.
+// cache: 'no-cache' fragt immer beim Server nach, ob es eine neue Fassung gibt. Sonst mischt der Browser
+// nach einem Update bis zu 10 Minuten alte und neue Dateien – dann bleibt die App weiß.
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;
       })
-      .catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || caches.match('index.html'))),
+      // Offline: aus dem Cache. Die Startseite nur für Seitenaufrufe – nie anstelle eines Skripts.
+      .catch(() => caches.match(req, { ignoreSearch: true })
+        .then((r) => r || (req.mode === 'navigate' ? caches.match('index.html') : Response.error()))),
   );
 });
 

@@ -35,6 +35,27 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="photo" accept="image/*" multiple hidden>
   <input type="file" id="backup" accept="application/json,.json" hidden>
+  <script>
+    // Notbremse: Startet die App nicht (z. B. ein halb geladenes Update), einmal frisch laden – sonst ein Knopf statt weißer Seite.
+    (function () {
+      function rescue() {
+        if (window.restlosReady) return;
+        var tried = null;
+        try { tried = sessionStorage.getItem('restlos:retry'); sessionStorage.setItem('restlos:retry', '1'); } catch (e) { tried = '1'; }
+        if (!tried && navigator.onLine !== false) {
+          var clear = window.caches ? caches.keys().then(function (keys) {
+            return Promise.all(keys.filter(function (k) { return k.indexOf('restlos-v') === 0; }).map(function (k) { return caches.delete(k); }));
+          }) : Promise.resolve();
+          clear.then(function () { location.reload(); }, function () { location.reload(); });
+          return;
+        }
+        var view = document.getElementById('view');
+        if (view) view.innerHTML = '<section class="empty"><div class="big">🔄</div><p>Restlos konnte nicht starten · Restlos could not start</p><button class="btn primary" onclick="location.reload()">↻</button></section>';
+      }
+      window.addEventListener('error', function (e) { if (!window.restlosReady && /\/js\//.test(e.filename || '')) setTimeout(rescue, 300); });
+      setTimeout(rescue, 10000);
+    })();
+  </script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

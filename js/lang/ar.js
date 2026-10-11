@@ -626,6 +626,8 @@ export default {
     "Vollkorn macht länger satt – nur falls du Lust hast, es mal zu probieren.": "الحبوب الكاملة تُشبع لفترة أطول – فقط إن رغبت في تجربتها.",
     "Warst du einkaufen?": "هل ذهبت للتسوّق؟",
     "Windows": "Windows",
+    "Hier ist etwas schiefgelaufen.": "حدث خطأ ما هنا.",
+    "Neu laden": "إعادة التحميل",
   },
   products: {
     "bananen": "موز",

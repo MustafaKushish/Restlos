@@ -626,6 +626,8 @@ export default {
     "Vollkorn macht länger satt – nur falls du Lust hast, es mal zu probieren.": "Lo integral sacia más tiempo, solo si te apetece probarlo.",
     "Warst du einkaufen?": "¿Has ido a comprar?",
     "Windows": "Windows",
+    "Hier ist etwas schiefgelaufen.": "Algo ha salido mal aquí.",
+    "Neu laden": "Recargar",
   },
   products: {
     "bananen": "Plátanos",
