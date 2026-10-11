@@ -176,6 +176,20 @@ test('Gemini: alle Modelle am Limit ergibt eine freundliche Meldung, falscher Sc
   await assert.rejects(askChef({ apiKey: 'AIzaX', messages: [{ role: 'user', content: 'x' }], fetch: bad }), /API-Schlüssel stimmt nicht/);
 });
 
+test('Gemini überlastet (503): nächstes Modell, sonst eine klare Meldung', async () => {
+  const calls = [];
+  const busyOnce = async (url) => {
+    calls.push(url);
+    if (calls.length === 1) return new Response('{"error":{"code":503,"status":"UNAVAILABLE"}}', { status: 503 });
+    return new Response(gsse(['Frittata']), { headers: { 'content-type': 'text/event-stream' } });
+  };
+  const res = await askChef({ apiKey: 'AIzaX', messages: [{ role: 'user', content: 'x' }], fetch: busyOnce });
+  assert.equal(res.text, 'Frittata');
+  assert.match(calls[1], /gemini-3\.1-flash-lite:/);
+  const busy = async () => new Response('{}', { status: 503 });
+  await assert.rejects(askChef({ apiKey: 'AIzaX', messages: [{ role: 'user', content: 'x' }], fetch: busy }), /überlastet/);
+});
+
 test('Über den Server: nur das Gespräch wird geschickt, kein Schlüssel', async () => {
   let sent;
   const fetch = async (url, init) => { sent = { url, init }; return new Response(gsse(['Hallo']), { headers: { 'content-type': 'text/event-stream' } }); };

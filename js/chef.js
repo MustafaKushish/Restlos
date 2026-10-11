@@ -99,6 +99,8 @@ export function askChef({ apiKey, server, sample, ...rest }) {
 // Kostenlose Modelle in der Reihenfolge, in der wir sie probieren. Ist bei einem das Tageslimit
 // erreicht (429) oder gibt es das Modell nicht mehr (404), kommt das nächste dran.
 export const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+// Bei diesen Antworten ist nur das eine Modell gerade weg, am Limit oder überlastet – dann das nächste versuchen.
+export const nextModel = (status) => status === 404 || status === 429 || status >= 500;
 export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export function geminiRequest(messages) {
@@ -146,7 +148,7 @@ async function askGemini({ apiKey, server, messages, onText, signal, fetch = glo
     }
     if (!res.ok) {
       lastStatus = res.status;
-      if (!server && (res.status === 404 || res.status === 429)) continue;
+      if (!server && nextModel(res.status)) continue;
       throw new Error(geminiError(res.status, await res.text().catch(() => '')));
     }
     let text = '';
@@ -180,6 +182,7 @@ export function geminiError(status, body) {
   if (status === 400 && /api.?key/i.test(body)) return 'Der API-Schlüssel stimmt nicht. Bitte unter „Bilanz → KI-Koch“ prüfen.';
   if (status === 401 || status === 403) return 'Der API-Schlüssel stimmt nicht oder darf Gemini nicht nutzen. Bitte unter „Bilanz → KI-Koch“ prüfen.';
   if (status === 429) return 'Gerade zu viele Anfragen – bitte in einer Minute nochmal.';
+  if (status === 503) return 'Die kostenlose KI ist gerade überlastet. Bitte in ein paar Minuten nochmal.';
   return `Der Koch ist gerade nicht erreichbar (Fehler ${status || '?'}). Bitte gleich nochmal.`;
 }
 
