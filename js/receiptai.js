@@ -10,7 +10,7 @@ export const KINDS = ['essen', 'haushalt', 'pfand'];
 
 export const RECEIPT_PROMPT = `Du bekommst ein oder mehrere Fotos.
 
-FALL A – Kassenbon (type "bon"):
+FALL A – Kassenbon (type "bon"). Dazu zählt auch der Bildschirm einer Selbstbedienungskasse (SB-Kasse) mit der Liste der gescannten Artikel und ein Screenshot eines digitalen Bons (eBon). Auf einem Kassen-Bildschirm Spiegelungen und Moiré ignorieren, nur die Artikelliste und die Summe lesen.
 Mehrere Fotos zeigen denselben langen Bon in Teilen von oben nach unten, die sich überlappen können. Jede Zeile des Bons zählt genau einmal.
 Lies den Bon vollständig, Zeile für Zeile, und lass keinen Artikel aus – auch Drogerie, Haushalt und Pfand.
 Für jeden Artikel:
@@ -25,7 +25,7 @@ Dazu:
 - total: der Endbetrag (SUMME, zu zahlen) als Zahl, 0 wenn nicht lesbar
 - count: die auf dem Bon gedruckte Artikelanzahl (z. B. „Anzahl Artikel: 14“, „Posten 14“), 0 wenn keine dasteht
 
-FALL B – kein Bon, sondern Lebensmittel selbst (Einkauf auf dem Tisch, Kühlschrank, Vorratsschrank; type "produkte"):
+FALL B – kein Bon, sondern Lebensmittel selbst (Einkauf auf dem Tisch, in der Tasche, im Einkaufswagen oder auf dem Kassenband, Kühlschrank, Vorratsschrank; type "produkte"):
 Liste jedes erkennbare Produkt einmal, qty = wie oft es zu sehen ist (genau zählen, z. B. 6 Eier, 3 Joghurtbecher).
 name wie oben, kind, price 0, days ab heute geschätzt, raw = Aufschrift oder kurze Beschreibung. total und count 0.`;
 

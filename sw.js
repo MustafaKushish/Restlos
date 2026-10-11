@@ -1,13 +1,13 @@
 // Offline: Die App selbst liegt im Cache, die Daten sowieso auf dem Gerät.
-const CACHE = 'restlos-v9';
+const CACHE = 'restlos-v10';
 // Fahrplan der Erinnerungen, den die App hier ablegt (siehe syncReminders in app.js). Bleibt bei Updates erhalten.
 const REMIND_CACHE = 'restlos-erinnerung';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/store.js', 'js/products.js', 'js/pantry.js', 'js/receipt.js', 'js/recipes.js', 'js/share.js', 'js/ocr.js',
-  'js/chef.js', 'js/rescue.js', 'js/config.js', 'js/receiptai.js', 'js/camera.js', 'js/neighbors.js', 'js/neighborapi.js', 'js/nachbarn.js', 'js/vendor/anthropic-sdk.js',
+  'js/chef.js', 'js/rescue.js', 'js/config.js', 'js/receiptai.js', 'js/camera.js', 'js/neighbors.js', 'js/neighborapi.js', 'js/nachbarn.js', 'js/health.js', 'js/vendor/anthropic-sdk.js',
   'js/i18n.js', 'js/lang/en.js', 'js/lang/tr.js', 'js/lang/ar.js', 'js/lang/fr.js', 'js/lang/es.js',
-  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'widgets/einkauf.json', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {
@@ -57,7 +57,27 @@ async function remindInBackground() {
 }
 
 self.addEventListener('periodicsync', (e) => {
-  if (e.tag === 'restlos-erinnerung') e.waitUntil(remindInBackground());
+  if (e.tag === 'restlos-erinnerung') e.waitUntil(Promise.all([remindInBackground(), updateWidgets()]));
+});
+
+// Widget auf dem Startbildschirm (Windows-Widget-Board): Einkaufsliste und was bald abläuft.
+// Die Texte legt die App fertig übersetzt in den Cache (syncWidget in app.js).
+async function updateWidgets() {
+  if (!self.widgets) return;
+  const widget = await self.widgets.getByTag('restlos').catch(() => null);
+  if (!widget) return;
+  const template = await (await fetch(widget.definition.msAcTemplate)).text();
+  const saved = await (await caches.open(REMIND_CACHE)).match('widget.json');
+  const data = saved ? await saved.text() : await (await fetch('widgets/data.json')).text();
+  await self.widgets.updateByTag('restlos', { template, data });
+}
+self.addEventListener('widgetinstall', (e) => e.waitUntil(updateWidgets()));
+self.addEventListener('widgetresume', (e) => e.waitUntil(updateWidgets()));
+self.addEventListener('widgetclick', (e) => {
+  if (e.action === 'open') e.waitUntil(self.clients.openWindow('./#/einkauf'));
+});
+self.addEventListener('message', (e) => {
+  if (e.data === 'widget') e.waitUntil(updateWidgets());
 });
 
 // Tipp auf die Erinnerung öffnet die Retten-Ideen.

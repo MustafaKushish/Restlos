@@ -11,6 +11,7 @@ import { checkTotal } from './receiptai.js';
 import { askChef, chefProvider, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems, ideasMessage, parseIdeas, pantryKey, rescueText } from './chef.js';
 import { rescueTips, reminderPlan, reminderSchedule, remember, emptyMemo } from './rescue.js';
 import { initNachbarn, renderNachbarn, neighborsLive } from './nachbarn.js';
+import { healthTips } from './health.js';
 import { t, tn, lang, LANGS, locale, dir, saveLang, pname, productName, euro, num, dateLabel } from './i18n.js';
 
 const store = createStore();
@@ -138,6 +139,7 @@ function renderVorrat() {
       ${remindAsk() ? `<button class="link small" data-action="notify">🔔 ${t('Rechtzeitig erinnern lassen')}</button>` : ''}
     </section>` : ''}
     ${milestoneCard()}
+    ${afterShoppingCard()}
     <section class="quick">
       <button class="quick-btn" data-action="scan"><span>📷</span>${t('Kassenbon')}</button>
       <button class="quick-btn" data-action="add" data-voice="1"><span>🎤</span>${t('Sprechen')}</button>
@@ -155,6 +157,19 @@ function renderVorrat() {
       <button class="btn ghost" data-action="demo">${t('Erst mal mit Beispiel-Vorrat ausprobieren')}</button>
     </section>`}
   `;
+}
+
+// Nach dem Einkauf: Wer etwas auf der Liste abgehakt hat, war wohl einkaufen – kurz an den Bon erinnern.
+function afterShoppingCard() {
+  const done = store.state.shopping.filter((s) => s.done).length;
+  if (!done) return '';
+  return `<section class="card tip after-shop">
+    <p>🧾 <b>${t('Warst du einkaufen?')}</b> ${t('Fotografiere den Bon, den Bildschirm der SB-Kasse oder einfach deine Einkäufe – oder übernimm die abgehakten Sachen.')}</p>
+    <div class="row-btns">
+      <button class="btn primary" data-action="scan">📷 ${t('Fotografieren')}</button>
+      <button class="btn" data-action="shop-to-pantry">✓ ${tn(done, '1 Sache übernehmen', '{n} Sachen übernehmen')}</button>
+    </div>
+  </section>`;
 }
 
 function row(i) {
@@ -721,6 +736,7 @@ function renderEinkauf() {
       <button class="icon-btn" aria-label="${t('Hinzufügen')}">＋</button>
     </form>
     <p id="shop-warn" class="hint" hidden></p>
+    ${healthCard(list.filter((s) => !s.done).map((s) => s.name), items)}
     ${list.length ? `<ul class="list">${list.map((s) => {
       const have = inStock(s.name);
       return `<li class="item ${s.done ? 'checked' : ''}">
@@ -744,6 +760,16 @@ function renderEinkauf() {
     warn.hidden = !have.length;
     warn.innerHTML = have.length ? `🤔 ${t('Hast du noch:')} ${have.map((i) => `<b>${i.qty > 1 ? `${i.qty}× ` : ''}${nm(i)}</b> (${status(i).label})`).join(', ')}` : '';
   });
+}
+
+// Kleine Gesund-Tipps – nur Anregungen, nichts wird verboten. Ausblenden mit einem Tipp.
+function healthCard(names, items) {
+  if (store.state.settings.health === false || !names.length) return '';
+  const tips = healthTips(names, { today: iso(), have: items.map((i) => i.pid).filter(Boolean) });
+  return `<section class="card tip health">
+    ${tips.map((x) => `<p>${x.icon} ${esc(x.text)}${x.add ? ` <button class="chip" data-action="shop-quick" data-name="${esc(x.add)}">＋ ${esc(x.add)}</button>` : ''}</p>`).join('')}
+    <button class="link small" data-action="health">${t('Tipps ausblenden')}</button>
+  </section>`;
 }
 
 // ---------- Teilen ----------
@@ -809,6 +835,11 @@ function renderBilanz() {
       <button class="set" data-action="calendar"><span>📅</span><span><b>${t('In den Kalender eintragen')}</b><small>${t('Erinnerung am Vorabend für alles, was in den nächsten 3 Wochen abläuft')}</small></span></button>
       ${notif !== 'unsupported' ? `<button class="set" data-action="notify"><span>🔔</span><span><b>${t(remindOn() ? 'Erinnerungen sind an' : 'Erinnerungen einschalten')}</b><small>${t(remindOn() ? 'Höchstens eine am Tag, 2 Tage bevor etwas abläuft · antippen zum Ausschalten' : notif === 'denied' ? 'Mitteilungen sind im Browser gesperrt – dort erlauben' : 'Höchstens eine Mitteilung am Tag, 2 Tage bevor etwas abläuft')}</small></span></button>` : ''}
     </div>
+    <h3 class="group">${t('Einkaufen')}</h3>
+    <div class="card settings">
+      <button class="set" data-action="health"><span>🥗</span><span><b>${t(store.state.settings.health === false ? 'Gesund-Tipps einschalten' : 'Gesund-Tipps sind an')}</b><small>${t('Kleine Anregungen auf der Einkaufsliste – nie ein Verbot')}</small></span></button>
+      <button class="set" data-action="home-guide"><span>📲</span><span><b>${t('Startbildschirm, Widget und Apple Pay')}</b><small>${t('Einkaufsliste mit einem Tipp öffnen, nach dem Bezahlen an den Bon erinnern')}</small></span></button>
+    </div>
     <h3 class="group">${t('KI-Koch')}</h3>
     <div class="card settings">
       ${store.state.settings.aiKey
@@ -825,6 +856,32 @@ function renderBilanz() {
     </div>
     <p class="muted small center">${t('Restlos · kostenlos und werbefrei · Haltbarkeiten und CO₂-Werte sind Schätzungen.')}</p>
   `;
+}
+
+// ---------- Startbildschirm, Widget, Apple Pay ----------
+// Echte Widgets erlauben iPhone und Android für Web-Apps nicht, Windows schon (manifest.webmanifest → widgets).
+// Apple Pay sieht eine Web-App nicht – das iPhone selbst kann aber nach jeder Zahlung erinnern (Kurzbefehle).
+function homeSheet() {
+  openSheet(`
+    <h2 id="sheet-title">${t('Startbildschirm, Widget und Apple Pay')}</h2>
+    <div class="guide">
+      <h3>💳 ${t('Nach Apple Pay an den Bon erinnern (iPhone)')}</h3>
+      <ol>
+        <li>${t('App <b>Kurzbefehle</b> öffnen → <b>Automation</b> → <b>＋</b>.')}</li>
+        <li>${t('<b>Wallet</b> wählen, deine Karte antippen, bei Kategorien z. B. <b>Lebensmittel</b>.')}</li>
+        <li>${t('<b>Sofort ausführen</b> wählen, dann <b>Weiter</b>.')}</li>
+        <li>${t('Aktion <b>Mitteilung anzeigen</b> mit dem Text:')} <b>${t('🧾 Kassenbon fotografiert? Kurz in Restlos scannen.')}</b></li>
+      </ol>
+      <p class="muted small">${t('Dann kommt nach jedem Bezahlen im Supermarkt eine kleine Mitteilung. Apple gibt Zahlungen nicht an Web-Apps weiter – darum geht es nur so.')}</p>
+      <h3>🤖 ${t('Android')}</h3>
+      <p>${t('Restlos installieren, dann das App-Symbol lange drücken: <b>Scannen</b>, <b>Einkauf</b> und <b>Rezepte</b> lassen sich als eigene Symbole auf den Startbildschirm ziehen.')}</p>
+      <h3>🍏 ${t('iPhone und iPad')}</h3>
+      <p>${t('In Safari: Teilen → <b>Zum Home-Bildschirm</b>. Widgets erlaubt Apple für Web-Apps leider nicht.')}</p>
+      <h3>🪟 ${t('Windows')}</h3>
+      <p>${t('Restlos in Edge installieren, dann <b>Windows-Taste + W</b> und das Widget <b>Restlos</b> hinzufügen. Es zeigt die Einkaufsliste und was bald abläuft.')}</p>
+    </div>
+    ${installed() ? '' : `<button class="btn primary block" data-action="install">📲 ${t('Restlos installieren')}</button>`}
+  `);
 }
 
 // ---------- Installieren ----------
@@ -1006,6 +1063,8 @@ const actions = {
   import: () => $('#backup').click(),
   reset: () => { if (confirm(t('Wirklich alles löschen? Vorrat, Einkaufsliste und Bilanz.'))) { store.reset(); toast(t('Alles gelöscht')); } },
   language: () => languageSheet(),
+  health: () => { const on = store.state.settings.health === false; store.setting('health', on); toast(t(on ? 'Gesund-Tipps sind an' : 'Gesund-Tipps ausgeblendet')); },
+  'home-guide': () => homeSheet(),
   'set-lang': (el) => {
     if (el.dataset.lang === lang) return closeSheet();
     saveLang(el.dataset.lang);
@@ -1178,7 +1237,25 @@ function syncReminders() {
     const items = store.items();
     const data = { on: remindOn(), memo, schedule: remindOn() ? reminderSchedule(items, memo, iso(), ideaFor) : [] };
     try { await (await caches.open(REMIND_CACHE)).put(REMIND_FILE, new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })); } catch { /* egal */ }
+    await syncWidget(items);
   }, 400);
+}
+
+// Widget (Windows): Der Service Worker liest die fertigen Texte aus dem Cache und füllt damit das Widget.
+async function syncWidget(items) {
+  const open = store.state.shopping.filter((s) => !s.done);
+  const due = items.filter((i) => daysLeft(i) <= 2 && !i.offered);
+  const data = {
+    shopTitle: `🛒 ${t('Einkaufsliste')}`,
+    shop: (open.length ? open.slice(0, 8).map((s) => `• ${s.qty > 1 ? `${s.qty}× ` : ''}${s.name}`) : [t('Alles erledigt')]).map((text) => ({ text })),
+    dueTitle: `⏰ ${t('Bald weg')}`,
+    due: (due.length ? due.slice(0, 5).map((i) => `• ${pname(i)} (${status(i).label})`) : [t('alles im grünen Bereich')]).map((text) => ({ text })),
+    open: t('Öffnen'),
+  };
+  try {
+    await (await caches.open(REMIND_CACHE)).put('widget.json', new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } }));
+    navigator.serviceWorker?.controller?.postMessage('widget');
+  } catch { /* egal */ }
 }
 
 async function backgroundReminders() {

@@ -512,3 +512,11 @@ dialog#cam::backdrop { background: #000; }
 .nb-more { margin-left: auto; min-width: 32px; min-height: 28px; border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; border-radius: 8px; }
 .nb-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .nb-suggest { margin-left: 0; }
+
+/* Gesund-Tipps, Nach-dem-Einkauf-Karte, Anleitung Startbildschirm */
+.health p, .after-shop p { margin: 0 0 8px; }
+.health .chip { margin-inline-start: 4px; }
+.after-shop .row-btns { margin-top: 4px; }
+.guide h3 { font-size: 16px; margin: 18px 0 6px; }
+.guide ol { padding-inline-start: 22px; margin: 0 0 8px; }
+.guide li { margin-bottom: 6px; }

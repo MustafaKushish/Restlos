@@ -10,16 +10,93 @@
   "orientation": "portrait",
   "background_color": "#f4f6f1",
   "theme_color": "#1f7a4d",
-  "categories": ["food", "lifestyle", "productivity"],
+  "categories": [
+    "food",
+    "lifestyle",
+    "productivity"
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
   ],
   "shortcuts": [
-    { "name": "Kassenbon scannen", "short_name": "Scannen", "url": "./#/vorrat?scan=1" },
-    { "name": "Reste-Rezepte", "short_name": "Rezepte", "url": "./#/rezepte" },
-    { "name": "Einkaufsliste", "short_name": "Einkauf", "url": "./#/einkauf" }
+    {
+      "name": "Einkauf fotografieren (Bon, SB-Kasse, Tüte)",
+      "short_name": "Scannen",
+      "url": "./#/vorrat?scan=1",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Einkaufsliste",
+      "short_name": "Einkauf",
+      "url": "./#/einkauf",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Reste-Rezepte",
+      "short_name": "Rezepte",
+      "url": "./#/rezepte",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "name": "Restlos – Einkauf und bald weg",
+      "short_name": "Restlos",
+      "description": "Einkaufsliste und was bald abläuft",
+      "tag": "restlos",
+      "ms_ac_template": "widgets/einkauf.json",
+      "data": "widgets/data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "icons/icon-512.png",
+          "sizes": "512x512",
+          "label": "Restlos"
+        }
+      ],
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ],
+      "auth": false,
+      "update": 3600
+    }
   ]
 }

@@ -3,7 +3,7 @@ import { iso, uid, makeItem, sortByExpiry } from './pantry.js';
 import { t } from './i18n.js';
 
 const KEY = 'restlos:v1';
-const EMPTY = () => ({ items: [], log: [], shopping: [], settings: { flat: '', veg: false, remind: true, reminder: null, aiKey: '' } });
+const EMPTY = () => ({ items: [], log: [], shopping: [], settings: { flat: '', veg: false, remind: true, health: true, reminder: null, aiKey: '' } });
 
 export function createStore(storage = globalThis.localStorage) {
   let state = EMPTY();

@@ -1,0 +1,7 @@
+{
+  "shopTitle": "🛒 Einkaufsliste",
+  "shop": [{ "text": "Restlos öffnen, damit hier deine Liste erscheint" }],
+  "dueTitle": "⏰ Bald weg",
+  "due": [{ "text": "–" }],
+  "open": "Öffnen"
+}
