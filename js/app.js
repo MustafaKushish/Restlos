@@ -6,6 +6,8 @@ import { parseReceipt } from './receipt.js';
 import { suggest } from './recipes.js';
 import { shareItems, printPoster, calendarFile } from './share.js';
 import { CONFIG } from './config.js';
+import { scanCamera, cameraSupported, MAX_SHOTS } from './camera.js';
+import { checkTotal } from './receiptai.js';
 import { askChef, chefProvider, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems } from './chef.js';
 
 const store = createStore();
@@ -206,11 +208,32 @@ function listen(input = $('#add-text'), onUpdate = updateAddPreview, mic = $('.m
 }
 
 // ---------- Kassenbon ----------
-function scanSheet() {
+// Ablauf: Kamera (mehrere Fotos für lange Bons) → KI liest jede Zeile (sonst Texterkennung auf dem Gerät)
+// → Übersicht mit Summen-Abgleich, Stückzahlen zum Korrigieren → in den Vorrat.
+let shots = [];
+let scan = null;
+
+async function startScan(more = false) {
+  closeSheet();
+  if (!more) shots = [];
+  if (!cameraSupported()) return scanSheet();
+  try {
+    const res = await scanCamera({ existing: shots });
+    if (res?.length) { shots = res; return handlePhotos(shots); }
+    if (more && scan) reviewSheet();
+  } catch (e) {
+    scanSheet(e.message);
+  }
+}
+
+function scanSheet(problem) {
+  const ai = aiReady();
   openSheet(`
     <h2 id="sheet-title">Kassenbon scannen</h2>
-    <p class="muted">Bon glatt hinlegen, gut beleuchten, ganz aufs Foto. Die Erkennung läuft auf deinem Gerät – das Foto wird nicht hochgeladen.</p>
-    <button class="btn primary block" data-action="photo">📷 Foto aufnehmen oder auswählen</button>
+    ${problem ? `<p class="scan-check warn">${esc(problem)}</p>` : ''}
+    <p class="muted">Bon glatt hinlegen, gut beleuchten, ganz aufs Foto. Bei langen Bons einfach mehrere Fotos auswählen. ${ai ? 'Die KI liest jede Zeile – das Foto geht dafür an Google Gemini.' : 'Die Erkennung läuft auf deinem Gerät – das Foto wird nicht hochgeladen.'}</p>
+    ${!problem && cameraSupported() ? '<button class="btn primary block" data-action="scan">📷 Kamera öffnen</button>' : ''}
+    <button class="btn ${problem || !cameraSupported() ? 'primary' : ''} block" data-action="photo">🖼️ Foto aufnehmen oder auswählen</button>
     <details class="paste">
       <summary>Digitalen Kassenbon einfügen (eBon aus REWE-, Lidl-Plus-App …)</summary>
       <textarea id="bon-text" rows="7" placeholder="Bon-Text hier einfügen …"></textarea>
@@ -219,68 +242,146 @@ function scanSheet() {
   `);
 }
 
-async function handlePhoto(file) {
-  openSheet(`<h2 id="sheet-title">Bon wird gelesen …</h2>
-    <div class="progress"><div id="bar"></div></div><p id="progress-text" class="muted center">Einen Moment …</p>`);
-  // Mit KI (Gemini bzw. Claude in der Vorschau) – viel genauer. Klappt das nicht, liest das Gerät selbst.
+const aiReady = () => {
   const conn = aiConn();
-  if (chefProvider(conn.apiKey, conn.server, conn.sample) && !conn.apiKey?.startsWith('sk-ant-')) {
-    const bar = $('#bar');
-    if (bar) { bar.style.width = '35%'; bar.classList.add('busy'); }
-    $('#progress-text') && ($('#progress-text').textContent = 'KI liest den Bon …');
+  return !!chefProvider(conn.apiKey, conn.server, conn.sample) && !conn.apiKey?.startsWith('sk-ant-');
+};
+
+async function handlePhotos(files) {
+  const n = files.length;
+  openSheet(`<h2 id="sheet-title">${n > 1 ? `${n} Fotos werden gelesen …` : 'Bon wird gelesen …'}</h2>
+    <div class="progress"><div id="bar"></div></div><p id="progress-text" class="muted center">Einen Moment …</p>`);
+  const step = (p, msg) => {
+    $('#bar') && ($('#bar').style.width = `${Math.round(p * 100)}%`);
+    $('#progress-text') && ($('#progress-text').textContent = msg);
+  };
+  // Mit KI (Gemini bzw. Claude in der Vorschau) – viel genauer. Klappt das nicht, liest das Gerät selbst.
+  if (aiReady()) {
+    $('#bar')?.classList.add('busy');
+    step(0.4, 'KI liest jede Zeile und zählt nach …');
     try {
       const { readReceiptAI } = await import('./receiptai.js');
-      return reviewReceipt(null, await readReceiptAI(file, conn));
+      return reviewReceipt(await readReceiptAI(files, aiConn()));
     } catch {
       toast('KI gerade nicht erreichbar – das Gerät liest den Bon selbst');
+      $('#bar')?.classList.remove('busy');
     }
   }
   try {
     const { recognize } = await import('./ocr.js');
-    const text = await recognize(file, (p, msg) => {
-      $('#bar') && ($('#bar').style.width = `${Math.round(p * 100)}%`);
-      $('#progress-text') && ($('#progress-text').textContent = msg);
-    });
-    reviewReceipt(text);
+    reviewReceipt(fromText(await recognize(files, step)));
   } catch (e) {
     openSheet(`<h2 id="sheet-title">Das hat nicht geklappt</h2><p>${esc(e.message)}</p>
-      <button class="btn primary block" data-action="photo">Nochmal versuchen</button>
+      <button class="btn primary block" data-action="scan">Nochmal scannen</button>
       <button class="btn block" data-action="add">Lieber eintippen</button>`);
   }
 }
 
-let pending = [];
-function reviewReceipt(text, fromAI) {
-  const { store: shop, date, items } = fromAI || parseReceipt(text);
-  if (fromAI) text = items.map((x) => x.raw).join('\n');
+// Ergebnis der Texterkennung bzw. eines eingefügten eBons ins selbe Format wie das der KI bringen.
+function fromText(text) {
+  const r = parseReceipt(text);
+  return { type: 'bon', store: r.store, date: r.date, total: r.total, count: r.count, text,
+    items: [...r.items.map((x) => ({ ...x, kind: 'essen' })), ...r.others] };
+}
+
+function reviewReceipt(result) {
+  const ai = !result.text;
   const today = iso();
-  const bought = date && date <= today && date >= addDays(today, -30) ? date : today;
-  pending = items.map((x) => {
+  const bought = result.type === 'bon' && result.date && result.date <= today && result.date >= addDays(today, -30) ? result.date : today;
+  const rows = result.items.map((x) => {
+    const line = x.line ?? x.price * x.qty;
+    if (x.kind !== 'essen') return { name: x.name, raw: x.raw, kind: x.kind, qty: x.qty, line, emoji: x.kind === 'pfand' ? '♻️' : '🧴' };
     // Kennt Restlos das Produkt nicht, nehmen wir die Haltbarkeit, die die KI geschätzt hat.
     const pid = x.pid ?? matchProduct(x.name)?.id;
     const expires = !pid && x.days ? addDays(bought, x.days) : undefined;
-    return { ...makeItem({ name: x.name, pid, qty: x.qty, price: x.price, bought, expires, source: 'bon', raw: x.raw }), checked: fromAI ? true : x.known };
+    const price = result.type === 'produkte' ? undefined : x.price;
+    // Die KI liefert schon verständliche Namen („Gouda“) – nur kryptische Bon-Texte ersetzt Restlos durch den eigenen Produktnamen.
+    const source = ai ? 'ki' : 'bon';
+    const item = makeItem({ name: x.name, pid, qty: x.qty, price, bought, expires, source, raw: x.raw });
+    return { ...item, kind: 'essen', line, given: item.name, checked: ai || !!x.known };
   });
-  if (!pending.length) {
+  scan = { result, rows, bought };
+  if (!rows.some((r) => r.kind === 'essen')) {
     return openSheet(`<h2 id="sheet-title">Keine Lebensmittel gefunden</h2>
-      <p class="muted">Der Bon war schwer zu lesen. Tipp: flach hinlegen, ohne Schatten, näher ran. Oder einfach eintippen.</p>
-      <button class="btn primary block" data-action="photo">Nochmal fotografieren</button>
+      <p class="muted">${rows.length ? `Auf dem Bon stehen nur Sachen, die nicht in den Vorrat gehören (${rows.map((r) => esc(r.name)).join(', ')}).` : 'Der Bon war schwer zu lesen. Tipp: flach hinlegen, ohne Schatten, näher ran, Lampe an. Oder einfach eintippen.'}</p>
+      <button class="btn primary block" data-action="scan">📷 Nochmal scannen</button>
       <button class="btn block" data-action="add">Eintippen</button>
-      <details class="paste"><summary>Erkannter Text</summary><pre>${esc(text)}</pre></details>`);
+      ${result.text ? `<details class="paste"><summary>Erkannter Text</summary><pre>${esc(result.text)}</pre></details>` : ''}`);
   }
-  const sum = pending.reduce((s, i) => s + i.price * i.qty, 0);
+  reviewSheet();
+}
+
+// Abgleich mit dem Bon: Summe aller Zeilen gegen den Endbetrag, Stückzahl gegen die gedruckte Artikelanzahl.
+function scanCheck() {
+  const { result, rows } = scan;
+  if (result.type === 'produkte') return { html: '', more: false };
+  const c = checkTotal({ total: result.total, count: result.count, items: rows });
+  const more = shots.length < MAX_SHOTS && cameraSupported() ? '<button class="btn small" data-action="scan-more">📷 Weiteres Foto aufnehmen</button>' : '';
+  const count = c.countOk === false ? ` Laut Bon ${result.count} Artikel, gezählt ${c.pieces} – die Stückzahl kannst du unten mit − und + anpassen.` : '';
+  if (c.ok) return { html: `<div class="scan-check ok">✓ <b>Alles erfasst.</b> Die Summe ${euro(c.sum)} stimmt mit dem Bon überein.${count}</div>`, more: false };
+  if (c.diff > 0) return { html: `<div class="scan-check warn"><b>Es fehlen ${euro(c.diff)}.</b> Auf dem Bon stehen ${euro(c.total)}, erkannt sind ${euro(c.sum)}. Vielleicht ist ein Stück vom Bon nicht auf dem Foto.${count} ${more}</div>`, more: !!more };
+  if (c.diff < 0) return { html: `<div class="scan-check warn"><b>${euro(-c.diff)} zu viel erkannt.</b> Auf dem Bon stehen ${euro(c.total)}. Ist etwas doppelt drin? Dann einfach den Haken wegnehmen.${count}</div>`, more: false };
+  return { html: `<div class="scan-check">Die Endsumme war nicht lesbar – kurz prüfen, ob alles da ist (erkannt: ${euro(c.sum)}).${count} ${more}</div>`, more: !!more };
+}
+
+function reviewSheet() {
+  const { result, rows, bought } = scan;
+  const food = rows.map((r, n) => [r, n]).filter(([r]) => r.kind === 'essen');
+  const other = rows.filter((r) => r.kind !== 'essen');
+  const picked = food.filter(([r]) => r.checked);
+  const pieces = picked.reduce((s, [r]) => s + r.qty, 0);
+  const products = result.type === 'produkte';
+  const top = sheet.scrollTop;
+  const check = scanCheck();
   openSheet(`
-    <h2 id="sheet-title">${pending.length} Sachen erkannt</h2>
-    <p class="muted small">${shop ? `${esc(shop)} · ` : ''}${dateLabel(bought)} · ${euro(sum)}. Haken weg bei allem, was nicht in den Vorrat soll.</p>
-    <ul class="list compact checks">${pending.map((i, n) => `<li class="item"><label>
-      <input type="checkbox" data-pick="${n}" ${i.checked ? 'checked' : ''}>
-      <span class="emoji">${i.emoji}</span>
-      <span class="item-text"><b>${esc(i.name)}</b>${i.qty > 1 ? ` <small>× ${i.qty}</small>` : ''}<small class="sub">${esc(i.raw)} · ${i.pid ? `bis ca. ${dateLabel(i.expires)}` : 'unbekannt'}</small></span>
-      <span class="price">${euro(i.price * i.qty)}</span></label></li>`).join('')}</ul>
-    <button class="btn primary block" data-action="bon-confirm">In den Vorrat übernehmen</button>
-    <details class="paste"><summary>Fehlt etwas? Erkannten Text ansehen</summary><pre>${esc(text)}</pre>
-      <button class="btn block" data-action="add">Fehlendes eintippen</button></details>
+    <h2 id="sheet-title">${products ? `${food.length} ${food.length === 1 ? 'Produkt' : 'Produkte'} gezählt` : `${rows.length} Artikel erkannt`}</h2>
+    <p class="muted small">${result.store ? `${esc(result.store)} · ` : ''}${dateLabel(bought)} · ${food.reduce((s, [r]) => s + r.qty, 0)} Stück Lebensmittel${products ? '' : ` · ${euro(rows.reduce((s, r) => s + r.line, 0))}`}</p>
+    ${check.html}
+    <h3 class="group">Kommt in den Vorrat</h3>
+    <ul class="list compact checks scan-list">${food.map(([r, n]) => `<li class="item">
+      <input type="checkbox" data-pick="${n}" aria-label="${esc(r.name)} übernehmen" ${r.checked ? 'checked' : ''}>
+      <span class="emoji">${r.emoji}</span>
+      <span class="item-text"><input class="name-edit" data-name="${n}" value="${esc(r.name)}" aria-label="Name"><small class="sub">bis ca. ${dateLabel(r.expires)}${r.raw && r.raw !== r.name ? ` · „${esc(r.raw)}“` : ''}</small></span>
+      <span class="stepper"><button data-action="bon-qty" data-n="${n}" data-d="-1" aria-label="weniger" ${r.qty <= 1 ? 'disabled' : ''}>−</button><b aria-label="Anzahl">${r.qty}</b><button data-action="bon-qty" data-n="${n}" data-d="1" aria-label="mehr">+</button></span>
+      ${products ? '' : `<span class="price">${euro(r.line)}</span>`}</li>`).join('')}</ul>
+    ${other.length ? `<h3 class="group">Auch auf dem Bon</h3>
+    <ul class="list compact scan-list other">${other.map((r) => `<li class="item"><span class="emoji">${r.emoji}</span>
+      <span class="item-text"><b>${esc(r.name)}</b>${r.qty > 1 ? ` <small>× ${r.qty}</small>` : ''}<small class="sub">${r.kind === 'pfand' ? (r.raw && r.raw !== r.name ? `„${esc(r.raw)}“` : 'Pfand') : 'kein Lebensmittel – kommt nicht in den Vorrat'}</small></span>
+      <span class="price">${euro(r.line)}</span></li>`).join('')}</ul>` : ''}
+    <button class="btn primary block" data-action="bon-confirm" ${picked.length ? '' : 'disabled'}>${picked.length ? `${pieces} ${pieces === 1 ? 'Sache' : 'Sachen'} in den Vorrat` : 'Nichts ausgewählt'}</button>
+    ${!check.more && shots.length && cameraSupported() && shots.length < MAX_SHOTS ? '<button class="btn block" data-action="scan-more">📷 Weiteres Foto vom selben Bon</button>' : ''}
+    <button class="btn ghost block" data-action="add">Fehlendes eintippen</button>
+    ${result.text ? `<details class="paste"><summary>Erkannten Text ansehen</summary><pre>${esc(result.text)}</pre></details>` : ''}
   `);
+  sheet.scrollTop = top;
+}
+
+sheet.addEventListener('change', (e) => {
+  const n = e.target.dataset.pick;
+  if (n === undefined || !scan) return;
+  scan.rows[n].checked = e.target.checked;
+  reviewSheet();
+});
+sheet.addEventListener('input', (e) => {
+  const n = e.target.dataset.name;
+  if (n !== undefined && scan) scan.rows[n].name = e.target.value;
+});
+
+function confirmScan() {
+  const { rows, bought } = scan;
+  const picked = rows.filter((r) => r.kind === 'essen' && r.checked && r.name.trim());
+  const added = store.add(picked.map((r) => {
+    const name = r.name.trim();
+    const price = scan.result.type === 'produkte' ? r.price : Math.round((r.line / r.qty) * 100) / 100;
+    // Selbst umbenannt: Produkt neu zuordnen, der eigene Name bleibt.
+    if (name !== r.given) return { name, qty: r.qty, price, bought, raw: r.raw, source: 'hand' };
+    return { name, pid: r.pid, qty: r.qty, price, bought, expires: r.expires, raw: r.raw, source: r.source };
+  }));
+  scan = null;
+  shots = [];
+  closeSheet();
+  location.hash = '#/vorrat';
+  toast(`${added.length} ${added.length === 1 ? 'Sache' : 'Sachen'} im Vorrat`, () => added.forEach((i) => store.consume(i.id, 'removed')));
 }
 
 // ---------- Rezepte ----------
@@ -617,7 +718,7 @@ function loadDemo() {
 // ---------- Aktionen ----------
 const actions = {
   add: (el) => addSheet(!!el.dataset.voice),
-  scan: scanSheet,
+  scan: () => startScan(),
   demo: () => { closeSheet(); loadDemo(); location.hash = '#/vorrat'; },
   close: closeSheet,
   undo: () => { toast.undo?.(); toast.undo = null; $('#toast').classList.remove('show'); },
@@ -664,15 +765,14 @@ const actions = {
   },
   // Kassenbon
   photo: () => $('#photo').click(),
-  'bon-text': () => reviewReceipt($('#bon-text').value),
-  'bon-confirm': () => {
-    const picked = pending.filter((_, n) => $(`[data-pick="${n}"]`)?.checked);
-    const added = store.add(picked.map(({ name, pid, qty, price, bought, raw }) => ({ name, pid, qty, price, bought, raw, source: 'bon' })));
-    pending = [];
-    closeSheet();
-    location.hash = '#/vorrat';
-    toast(`${added.length} Sachen im Vorrat`, () => added.forEach((i) => store.consume(i.id, 'removed')));
+  'scan-more': () => startScan(true),
+  'bon-text': () => { shots = []; reviewReceipt(fromText($('#bon-text').value)); },
+  'bon-qty': (el) => {
+    const r = scan.rows[el.dataset.n];
+    r.qty = Math.max(1, Math.min(99, r.qty + +el.dataset.d));
+    reviewSheet();
   },
+  'bon-confirm': confirmScan,
   // Rezepte
   veg: () => { store.setting('veg', !store.state.settings.veg); },
   recipe: (el) => recipeSheet(+el.dataset.n),
@@ -803,9 +903,9 @@ document.addEventListener('submit', (e) => {
 document.addEventListener('input', (e) => { if (e.target.id === 'chef-text') chat.draft = e.target.value; });
 
 $('#photo').addEventListener('change', (e) => {
-  const f = e.target.files[0];
+  const files = [...e.target.files].slice(0, MAX_SHOTS);
   e.target.value = '';
-  if (f) handlePhoto(f);
+  if (files.length) { shots = files; handlePhotos(files); }
 });
 
 $('#backup').addEventListener('change', async (e) => {
@@ -860,7 +960,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 setTimeout(remind, 1500);
 // Schnellzugriff vom Startbildschirm („Kassenbon scannen“)
-if (location.hash.includes('scan=1')) { history.replaceState(null, '', '#/vorrat'); scanSheet(); }
+if (location.hash.includes('scan=1')) { history.replaceState(null, '', '#/vorrat'); startScan(); }
 
 // Für Tests und Entwickler-Konsole
 window.restlos = { store, PRODUCTS };

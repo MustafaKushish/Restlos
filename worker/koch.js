@@ -1,12 +1,12 @@
 // Restlos-Koch-Server (Cloudflare Worker): verwahrt den Gemini-Schlüssel, damit Nutzer keinen eigenen brauchen.
-// Er nimmt nur ein Koch-Gespräch ({ messages }) oder ein Bon-Foto ({ receipt }) an und baut die Anfrage selbst –
+// Er nimmt nur ein Koch-Gespräch ({ messages }) oder Bon-Fotos ({ receipt: Bild oder Liste von Bildern }) an und baut die Anfrage selbst –
 // so lässt er sich nicht als allgemeine Gratis-KI missbrauchen. Die Antwort wird unverändert durchgestreamt.
 //
 // Einstellungen im Cloudflare-Dashboard (Worker → Settings → Variables and Secrets):
 //   GEMINI_API_KEY  (Secret)  Schlüssel von aistudio.google.com – ohne hinterlegte Zahlungsdaten bleibt es kostenlos
 //   ALLOWED_ORIGIN  (Text)    Adresse der App, z. B. https://mustafakushish.github.io (mehrere mit Komma)
 import { geminiRequest, GEMINI_MODELS } from '../js/chef.js';
-import { receiptRequest } from '../js/receiptai.js';
+import { receiptRequest, MAX_PHOTOS } from '../js/receiptai.js';
 
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 12000;
@@ -49,13 +49,15 @@ export default {
     if (!env.GEMINI_API_KEY) return json(500, 'Kein Schlüssel hinterlegt', headers);
 
     const raw = await request.text();
-    if (raw.length > 4_000_000) return json(413, 'Zu groß', headers);
+    if (raw.length > 16_000_000) return json(413, 'Zu groß', headers);
     let messages, receipt;
     try { ({ messages, receipt } = JSON.parse(raw)); } catch { return json(400, 'Kein JSON', headers); }
     let body, action;
     if (receipt) {
-      if (!/^image\/(jpeg|png|webp)$/.test(receipt.mimeType) || typeof receipt.data !== 'string') return json(400, 'Kein Bild', headers);
-      body = JSON.stringify(receiptRequest({ mimeType: receipt.mimeType, data: receipt.data }));
+      const images = [receipt].flat();
+      if (images.length > MAX_PHOTOS) return json(413, 'Zu viele Fotos', headers);
+      if (!images.every((i) => /^image\/(jpeg|png|webp)$/.test(i?.mimeType) && typeof i.data === 'string')) return json(400, 'Kein Bild', headers);
+      body = JSON.stringify(receiptRequest(images.map((i) => ({ mimeType: i.mimeType, data: i.data }))));
       action = 'generateContent';
     } else {
       if (raw.length > 60000) return json(413, 'Zu lang', headers);
