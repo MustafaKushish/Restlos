@@ -4,7 +4,7 @@
 
 | Problem | Lösung in Restlos |
 |---|---|
-| Eintippen nervt | **Kassenbon fotografieren.** Die KI (Gemini) liest den Bon: Lebensmittel, Mengen, Preise und geschätzte Haltbarkeit. Pfand, Rabatte und Drogerieartikel sortiert sie aus. Ohne KI liest das Gerät den Bon selbst (Texterkennung). |
+| Eintippen nervt | **Kassenbon scannen.** Eigene Kamera-Ansicht mit Rahmen und Live-Hinweisen (zu dunkel, ruhig halten), Lampe, und mehrere Fotos für lange Bons. Die KI (Gemini) liest jede Zeile: Lebensmittel, Mengen, Preise, geschätzte Haltbarkeit, dazu Drogerie und Pfand. Restlos gleicht die Summe mit dem Endbetrag auf dem Bon ab und sagt, ob etwas fehlt. Stückzahlen und Namen lassen sich vor dem Übernehmen korrigieren. Fotografiert man statt des Bons die Einkäufe selbst, zählt die KI die Produkte. Ohne KI liest das Gerät den Bon selbst (Texterkennung). |
 | Niemand tippt Ablaufdaten ein | **Haltbarkeit wird geschätzt** (über 80 Produkte, ab Kaufdatum). „Angebrochen“ und „Einfrieren“ passen sie an. |
 | Man vergisst, was da ist | **Ampel-Übersicht** nach Dringlichkeit, Hinweis beim Öffnen, Erinnerungen im Handy-Kalender (.ics) |
 | Was koche ich mit den Resten? | **Reste-Rezepte**, die zuerst das Ablaufende verbrauchen. Benannt nach deinen Resten („Frittata mit Zucchini & Paprika“). |
@@ -19,23 +19,24 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
 
 - **Online:** Jeder Push auf `main` stellt die App über GitHub Pages unter `https://<name>.github.io/Restlos/` bereit (Workflow „Web-App (GitHub Pages)“). Auf dem Handy dann „Zum Home-Bildschirm“.
 - **Lokal:** `npm start`, dann http://localhost:8080 öffnen. In der App „Beispiel-Vorrat laden“ antippen.
-- **Tests:** `npm test` (Bon-Erkennung, Haltbarkeit, Rezepte, Bilanz, Speicher, KI-Koch)
+- **Tests:** `npm test` (Bon-Erkennung, Scanner, Haltbarkeit, Rezepte, Bilanz, Speicher, KI-Koch)
 - **KI-Koch und KI-Bonerkennung ohne Einrichtung für Nutzer:** kostenlosen Gemini-Schlüssel (aistudio.google.com) auf GitHub unter *Settings → Secrets and variables → Actions → New repository secret* als `GEMINI_API_KEY` speichern. Beim Veröffentlichen setzt der Workflow ihn in die App ein. Wichtig: Der Schlüssel ist dann im Code der Webseite sichtbar. Deshalb in der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) beim Schlüssel *Website-Einschränkung* auf `https://mustafakushish.github.io/*` und *API-Einschränkung* auf „Generative Language API“ setzen und **keine Zahlungsdaten** hinterlegen – dann kann er höchstens das kostenlose Tageslimit verbrauchen, nie Geld kosten. Alternative ohne sichtbaren Schlüssel: der Koch-Server in `worker/` ([Anleitung](worker/README.md)). Nutzer können auch selbst einen Schlüssel eintragen.
 - **Unterstützen:** PayPal-Link in `js/config.js` eintragen, dann erscheinen die Knöpfe „Restlos unterstützen“ (Bilanz und nach jedem Rezept).
 
 ## Technik
 
 - Installierbare Web-App (PWA), ohne Build-Schritt, läuft offline. Eine Codebasis für iPhone, Android und Desktop.
-- **Datenschutz:** Alles bleibt auf dem Gerät (localStorage). Die Bon-Erkennung (Tesseract.js) läuft im Browser, das Foto wird nicht hochgeladen. Nur beim ersten Scan werden etwa 3 MB Erkennungsdaten aus dem Netz geladen.
+- **Datenschutz:** Alles bleibt auf dem Gerät (localStorage). Mit KI gehen die Bon-Fotos zum Lesen an Gemini. Ohne KI läuft die Bon-Erkennung (Tesseract.js) im Browser und das Foto wird nicht hochgeladen; nur beim ersten Scan werden etwa 3 MB Erkennungsdaten aus dem Netz geladen.
 - **KI-Koch:** Nur wenn man ihn fragt, gehen Wunsch und Vorratsliste an die KI, die Antwort wird live gestreamt. Standard ist Gemini (kostenlose Flash-Modelle; ist bei einem das Tageslimit erreicht, übernimmt das nächste), über den Koch-Server oder mit eigenem Schlüssel. Wer einen Claude-Schlüssel (`sk-ant-…`) einträgt, bekommt Claude (`claude-opus-5-5`, SDK gebündelt in `js/vendor/`). Eigene Schlüssel bleiben auf dem Gerät und landen nicht in der Sicherungsdatei. Hinweis: Bei der kostenlosen Google-Stufe darf Google Anfragen zur Verbesserung nutzen.
 - Aufbau:
   - `js/products.js` – Produktwissen: Haltbarkeit, Lagerort, Preis, CO₂, Bon-Schreibweisen
-  - `js/receipt.js` – Bon-Text → Artikel (REWE, Edeka, Lidl, Aldi …)
+  - `js/camera.js` – Kamera-Scanner (Live-Bild, Hinweise, Lampe, mehrere Fotos)
+  - `js/receipt.js` – Bon-Text → Artikel (REWE, Edeka, Lidl, Aldi …), Summe, Artikelanzahl, Zusammenfügen mehrerer Fotos
   - `js/pantry.js` – Datum, Status (MHD vs. Verbrauchsdatum), Bilanz, Freitext/Sprache
   - `js/recipes.js` – 36 Rezepte und die Auswahl nach Dringlichkeit
   - `js/share.js` – Teilen-Text, Aushang, Kalender-Erinnerungen
   - `js/store.js` – Speicher mit Rückgängig
-  - `js/receiptai.js` – Kassenbon per KI lesen
+  - `js/receiptai.js` – Kassenbon per KI lesen, Summen-Abgleich
   - `js/chef.js` – KI-Koch: Anweisungen an den Koch, Anfrage (Gemini/Claude), sichere Darstellung der Antwort
   - `js/config.js` – Adresse des Koch-Servers und PayPal-Link
   - `worker/` – Restlos-Koch-Server für Cloudflare (verwahrt den Gemini-Schlüssel)

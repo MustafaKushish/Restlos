@@ -252,7 +252,7 @@ test('KI-Bon: Antwort wird geprüft, Stückpreis berechnet, Unsinn verworfen', (
   ] });
   assert.equal(r.store, 'REWE');
   assert.equal(r.date, '2026-10-08');
-  assert.deepEqual(r.items.map((x) => [x.name, x.qty, x.price, x.days]), [['H-Milch', 2, 0.99, 90], ['Bananen', 1, 0, null], ['Wildreis-Mix', 1, 2.49, null]]);
+  assert.deepEqual(r.items.map((x) => [x.name, x.qty, x.price, x.days]), [['H-Milch', 2, 0.99, 90], ['Bananen', 1, 1.99, null], ['Wildreis-Mix', 1, 2.49, null]]);
   assert.equal(cleanReceipt({ date: '8.10.', items: 'kaputt' }).date, null);
 });
 
