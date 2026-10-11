@@ -5,6 +5,11 @@ export const CONFIG = {
   // Gemini-Schlüssel der App. Wird beim Veröffentlichen aus dem GitHub-Secret GEMINI_API_KEY eingesetzt
   // (.github/workflows/pages.yml) – nie hier von Hand eintragen, sonst steht er im Code auf GitHub.
   appKey: '',
+  // Nachbarschafts-Börse (Supabase, Region Frankfurt): Projekt-Adresse und „publishable“/„anon“-Schlüssel.
+  // Der Schlüssel ist zum Veröffentlichen gedacht – geschützt wird alles durch die Regeln in supabase/schema.sql.
+  // Leer = die Börse ist nur als Vorschau unter …#/nachbarn zu sehen und speichert nur auf dem Gerät.
+  neighborUrl: '',
+  neighborKey: '',
   // PayPal-Link für „Restlos unterstützen“ (Spenden-Seite von PayPal; dort geht auch Karte, Apple Pay und Google Pay,
   // soweit PayPal es anbietet). Mit eigenem paypal.me-Namen ginge auch 'https://paypal.me/deinname'.
   paypal: 'https://www.paypal.com/donate/?business=mustafa.al-zurgany%40web.de&currency_code=EUR&item_name=Restlos%20unterst%C3%BCtzen',
