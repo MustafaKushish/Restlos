@@ -12,6 +12,7 @@
 | Ich kann nicht kochen | **KI-Koch:** Einfach schreiben oder sagen, was da ist. Ein Profikoch (KI, kostenlos über Google Gemini) macht daraus ein Rezept für Anfänger: zuerst das, was bald abläuft, jeder Schritt mit Hitze, Zeit und woran man erkennt, dass es passt. Rückfragen wie „ohne Ofen?“, andere Ideen per Antippen, danach „Gekocht!“ trägt die Zutaten aus. Unter *Rezepte* schaut der Koch selbst in den Vorrat und schlägt drei neue Gerichte vor (neu nur, wenn sich ändert, was bald weg muss). |
 | Zu viel eingekauft | **Einkaufsliste mit Warnung** „Hast du noch: 6× Eier (noch 12 Tage)“. Abgehakte Sachen wandern direkt in den Vorrat. |
 | Schaffe ich nicht mehr | **Im Hausflur teilen:** fertiger Text für die Haus-WhatsApp-Gruppe oder nebenan.de, Aushang mit Abreißzetteln zum Drucken |
+| Nachbarn sollen auch was davon haben | **Nachbarschafts-Börse** (freiwillig): Essen verschenken, sortiert nach Stadt und Straße, mit offenem Chat für die Stadt und Fragen zu jedem Angebot. Ohne Konto und **ohne Telefonnummer** (die App und die Datenbank lassen Nummern, E-Mails, Links und Kontodaten nicht durch), nur Straße ohne Hausnummer. Der **KI-Koch liest mit**, bevor etwas rausgeht, und bremst freundlich bei Streit oder Beleidigungen. Melden (nach 3 Meldungen sofort weg) und Blockieren. Angebote verschwinden nach 3 Tagen, Nachrichten nach 7. Einrichten: [supabase/README.md](supabase/README.md) |
 | Bringt das was? | **Bilanz:** Gerettet-Quote, Euro im Müll, CO₂, „am häufigsten weggeworfen“ mit Tipp |
 
 Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) und **Eintippen** mit Vorschlägen.
@@ -40,7 +41,11 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
   - `js/store.js` – Speicher mit Rückgängig
   - `js/receiptai.js` – Kassenbon per KI lesen, Summen-Abgleich
   - `js/chef.js` – KI-Koch: Anweisungen an den Koch, Anfrage (Gemini/Claude), sichere Darstellung der Antwort
-  - `js/config.js` – Adresse des Koch-Servers und PayPal-Link
+  - `js/neighbors.js` – Nachbarschafts-Börse: Datenschutz-Prüfung, Stadt/Straße, KI-Koch als Aufpasser
+  - `js/neighborapi.js` – Verbindung zur Datenbank (anonym) und Vorschau nur auf dem Gerät
+  - `js/nachbarn.js` – Oberfläche der Nachbarschafts-Börse
+  - `supabase/schema.sql` – Datenbank mit Zugriffsregeln, Prüfungen und automatischem Löschen
+  - `js/config.js` – Adresse des Koch-Servers, der Nachbarschafts-Datenbank und PayPal-Link
   - `worker/` – Restlos-Koch-Server für Cloudflare (verwahrt den Gemini-Schlüssel)
   - `js/ocr.js` – Texterkennung, `js/app.js` – Oberfläche
 
@@ -50,7 +55,7 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
 2. **Push-Erinnerungen für alle Geräte:** Heute kommen Erinnerungen im Hintergrund nur bei der installierten App in Chrome/Edge (Android, Computer), sonst beim Öffnen. Für das iPhone bräuchte es Web Push mit einem kleinen Server.
 3. **KI-Bon-Erkennung** bei schlechten Fotos über den Koch-Server
 4. **Barcode scannen** + Open Food Facts für Produkte ohne Bon (z. B. Geschenke, Vorräte)
-5. **Hausflur-Börse:** echte Angebote für Nachbarn im selben Haus (Einladungslink oder QR-Code am schwarzen Brett, Chat, „reserviert“)
+5. **Nachbarschafts-Börse:** fertig gebaut, wird mit einer Supabase-Datenbank eingeschaltet (siehe oben). Später vielleicht: Hinweis, wenn in der eigenen Straße etwas Neues angeboten wird.
 6. **eBon-Anbindung:** digitale Kassenbons (REWE, Lidl Plus, Payback) automatisch übernehmen, ganz ohne Foto
 7. Lernende Haltbarkeit: Wenn jemand das Datum oft ändert, passt Restlos die eigene Schätzung an.
 

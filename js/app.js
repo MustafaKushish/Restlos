@@ -10,6 +10,7 @@ import { scanCamera, cameraSupported, MAX_SHOTS } from './camera.js';
 import { checkTotal } from './receiptai.js';
 import { askChef, chefProvider, firstMessage, pantryForChef, renderMarkdown, ideas, usedItems, ideasMessage, parseIdeas, pantryKey, rescueText } from './chef.js';
 import { rescueTips, reminderPlan, reminderSchedule, remember, emptyMemo } from './rescue.js';
+import { initNachbarn, renderNachbarn, neighborsLive } from './nachbarn.js';
 
 const store = createStore();
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -745,6 +746,7 @@ function renderTeilen() {
   const flat = store.state.settings.flat;
   view.innerHTML = `
     <section class="hero"><h1>Im Hausflur teilen</h1><p>Was du nicht mehr schaffst, freut die Nachbarn. Teile es in der Haus-Gruppe oder häng einen Aushang auf.</p></section>
+    ${neighborsLive(CONFIG) ? `<a class="card chef-entry" href="#/nachbarn"><span class="emoji">🏘️</span><span><b>Nachbarschafts-Börse</b><small>Essen in deiner Straße verschenken und offen darüber schreiben – ohne Telefonnummer</small></span></a>` : ''}
     <label class="field">Abholen bei (Name an der Klingel, Etage)
       <input type="text" value="${esc(flat)}" data-setting="flat" placeholder="z. B. Müller, 3. OG links"></label>
     ${offered.length ? `<h3 class="group">Angeboten</h3><ul class="list">${offered.map((i) => `<li class="item">
@@ -1071,7 +1073,7 @@ $('#backup').addEventListener('change', async (e) => {
 });
 
 // ---------- Navigation ----------
-const ROUTES = { vorrat: renderVorrat, rezepte: renderRezepte, koch: renderKoch, einkauf: renderEinkauf, teilen: renderTeilen, bilanz: renderBilanz };
+const ROUTES = { vorrat: renderVorrat, rezepte: renderRezepte, koch: renderKoch, einkauf: renderEinkauf, teilen: renderTeilen, nachbarn: renderNachbarn, bilanz: renderBilanz };
 const current = () => location.hash.replace('#/', '').split('?')[0] || 'vorrat';
 
 function render() {
@@ -1082,7 +1084,7 @@ function render() {
   view.dataset.route = route;
   ROUTES[route]();
   if (keep) view.querySelector(`[data-setting="${keep}"]`)?.focus();
-  const tab = route === 'koch' ? 'rezepte' : route;
+  const tab = { koch: 'rezepte', nachbarn: 'teilen' }[route] || route;
   document.querySelectorAll('#tabs a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
   const shopCount = store.state.shopping.filter((s) => !s.done).length;
   $('#tabs [data-tab="einkauf"]').dataset.count = shopCount || '';
@@ -1092,6 +1094,16 @@ function render() {
     setTimeout(() => $('#mission')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   }
 }
+
+// Nachbarschafts-Börse (js/nachbarn.js): Vorschläge aus dem Vorrat – nichts nach Verbrauchsdatum, nichts Abgelaufenes.
+initNachbarn({
+  view, esc, toast, openSheet, closeSheet, aiConn, config: CONFIG,
+  active: () => current() === 'nachbarn',
+  offerable: () => store.items()
+    .filter((i) => daysLeft(i) >= 0 && !(i.pid && byId[i.pid]?.vd))
+    .sort((a, b) => (b.offered ? 1 : 0) - (a.offered ? 1 : 0) || daysLeft(a) - daysLeft(b))
+    .map((i) => ({ name: i.name, emoji: i.emoji, title: `${i.qty > 1 ? `${i.qty}× ` : ''}${i.name}`, body: `Gut bis ${dateLabel(i.expires)} – wer mag es haben?` })),
+});
 
 let lastRoute = current();
 window.addEventListener('hashchange', () => {

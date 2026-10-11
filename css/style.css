@@ -480,3 +480,19 @@ dialog#cam::backdrop { background: #000; }
 }
 .cam-shutter:active { background: #fff; }
 .cam-shutter:disabled { opacity: 0.4; }
+
+/* ---------- Nachbarschafts-Börse ---------- */
+.nb-rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 15px; }
+.nb-agree { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; margin: 8px 0 0; }
+.nb-agree input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; margin: 0; }
+.nb-offer.vergeben .item-text b { color: var(--muted); text-decoration: line-through; }
+.nb-chat { display: flex; flex-direction: column; gap: 8px; }
+.nb-chat .input-row { margin-top: 6px; }
+.nb-msg { max-width: 88%; padding: 8px 12px; border-radius: 16px 16px 16px 4px; background: var(--bg); border: 1px solid var(--line); overflow-wrap: anywhere; }
+.nb-msg.me { margin-left: auto; border-radius: 16px 16px 4px 16px; background: var(--accent-soft); border-color: transparent; }
+.nb-msg p { margin: 2px 0 0; }
+.nb-meta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.nb-meta b { color: var(--text); font-weight: 650; }
+.nb-more { margin-left: auto; min-width: 32px; min-height: 28px; border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; border-radius: 8px; }
+.nb-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.nb-suggest { margin-left: 0; }

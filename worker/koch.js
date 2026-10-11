@@ -1,5 +1,6 @@
 // Restlos-Koch-Server (Cloudflare Worker): verwahrt den Gemini-Schlüssel, damit Nutzer keinen eigenen brauchen.
-// Er nimmt nur ein Koch-Gespräch ({ messages }) oder Bon-Fotos ({ receipt: Bild oder Liste von Bildern }) an und baut die Anfrage selbst –
+// Er nimmt nur ein Koch-Gespräch ({ messages }), Bon-Fotos ({ receipt: Bild oder Liste von Bildern })
+// oder eine Chat-Nachricht zum Prüfen für die Nachbarschafts-Börse ({ moderate: [{ role: 'user', content }] }) an und baut die Anfrage selbst –
 // so lässt er sich nicht als allgemeine Gratis-KI missbrauchen. Die Antwort wird unverändert durchgestreamt.
 //
 // Einstellungen im Cloudflare-Dashboard (Worker → Settings → Variables and Secrets):
@@ -7,6 +8,7 @@
 //   ALLOWED_ORIGIN  (Text)    Adresse der App, z. B. https://mustafakushish.github.io (mehrere mit Komma)
 import { geminiRequest, GEMINI_MODELS } from '../js/chef.js';
 import { receiptRequest, MAX_PHOTOS } from '../js/receiptai.js';
+import { moderationRequest } from '../js/neighbors.js';
 
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 12000;
@@ -50,10 +52,14 @@ export default {
 
     const raw = await request.text();
     if (raw.length > 16_000_000) return json(413, 'Zu groß', headers);
-    let messages, receipt;
-    try { ({ messages, receipt } = JSON.parse(raw)); } catch { return json(400, 'Kein JSON', headers); }
+    let messages, receipt, moderate;
+    try { ({ messages, receipt, moderate } = JSON.parse(raw)); } catch { return json(400, 'Kein JSON', headers); }
     let body, action;
-    if (receipt) {
+    if (moderate) {
+      if (!Array.isArray(moderate) || moderate.length !== 1 || moderate[0]?.role !== 'user' || typeof moderate[0].content !== 'string' || moderate[0].content.length > 6000) return json(400, 'Ungültige Prüfung', headers);
+      body = JSON.stringify(moderationRequest([{ role: 'user', content: moderate[0].content }]));
+      action = 'generateContent';
+    } else if (receipt) {
       const images = [receipt].flat();
       if (images.length > MAX_PHOTOS) return json(413, 'Zu viele Fotos', headers);
       if (!images.every((i) => /^image\/(jpeg|png|webp)$/.test(i?.mimeType) && typeof i.data === 'string')) return json(400, 'Kein Bild', headers);
@@ -73,7 +79,7 @@ export default {
         body,
       });
       if (last.ok) {
-        return new Response(last.body, { headers: { ...headers, 'content-type': receipt ? 'application/json' : 'text/event-stream', 'cache-control': 'no-store' } });
+        return new Response(last.body, { headers: { ...headers, 'content-type': receipt || moderate ? 'application/json' : 'text/event-stream', 'cache-control': 'no-store' } });
       }
       if (last.status !== 404 && last.status !== 429) break;
     }
