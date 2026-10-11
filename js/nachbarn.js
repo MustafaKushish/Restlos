@@ -96,7 +96,7 @@ function draw() {
         <button class="icon-btn flip" aria-label="${t('Senden')}" ${st.busy ? 'disabled' : ''}>➤</button>
       </form>
     </section>
-    <p class="muted small center">${t('Alles hier sehen alle in {city}. Angebote verschwinden nach {offer} Tagen, Nachrichten nach {msg}.', { city: esc(prefs.city), offer: OFFER_DAYS, msg: MESSAGE_DAYS })}
+    <p class="muted small center">${t('Alles hier sehen alle in {city}. Angebote verschwinden nach {offer} Tagen, Nachrichten nach {msg} Tagen.', { city: esc(prefs.city), offer: OFFER_DAYS, msg: MESSAGE_DAYS })}
       <br><button class="link" data-nb="rules">${t('Regeln & Datenschutz')}</button> · <button class="link" data-nb="profile">${t('Mein Name')}</button> · <button class="link" data-nb="wipe">${t('Alles von mir löschen')}</button></p>
   `;
   if (focused) { const el = document.getElementById('nb-chat'); el?.focus(); el?.setSelectionRange(draft.length, draft.length); }
@@ -118,7 +118,7 @@ const RULES = () => `
     <li>📵 ${t('<b>Keine Telefonnummern</b>, E-Mails, Links oder Kontodaten. Die App lässt sie gar nicht durch.')}</li>
     <li>👨‍🍳 ${t('<b>Der KI-Koch liest mit</b>, bevor etwas rausgeht, und bremst freundlich, wenn der Ton kippt.')}</li>
     <li>🚩 ${t('<b>Melden & Blockieren</b> bei jeder Nachricht. Nach 3 Meldungen ist ein Beitrag sofort weg.')}</li>
-    <li>🧹 ${t('<b>Alles verschwindet von selbst:</b> Angebote nach {offer} Tagen, Nachrichten nach {msg}. Eigenes kannst du jederzeit löschen.', { offer: OFFER_DAYS, msg: MESSAGE_DAYS })}</li>
+    <li>🧹 ${t('<b>Alles verschwindet von selbst:</b> Angebote nach {offer} Tagen, Nachrichten nach {msg} Tagen. Eigenes kannst du jederzeit löschen.', { offer: OFFER_DAYS, msg: MESSAGE_DAYS })}</li>
     <li>🥩 ${t('Kein rohes Fleisch, Fisch oder Geflügel nach Verbrauchsdatum, nichts Selbstgekochtes von gestern ohne Kühlung, kein Alkohol.')}</li>
   </ul>`;
 
