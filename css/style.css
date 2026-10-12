@@ -623,6 +623,8 @@ dialog#cam::backdrop { background: #000; }
 .nb-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .nb-suggest { margin-left: 0; }
 
+.demo-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-block: 12px; }
+
 /* Gesund-Tipps, Nach-dem-Einkauf-Karte, Anleitung Startbildschirm */
 .health p, .after-shop p { margin: 0 0 8px; }
 .health .chip { margin-inline-start: 4px; }

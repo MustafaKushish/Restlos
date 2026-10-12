@@ -166,6 +166,7 @@ function renderVorrat() {
       </div>
       ${remindAsk() ? `<button class="link small" data-action="notify">🔔 ${t('Rechtzeitig erinnern lassen')}</button>` : ''}
     </section>` : ''}
+    ${store.hasDemo() ? `<section class="card tip demo-note"><span>🧪 ${t('Das ist der Beispiel-Vorrat.')}</span><button class="btn small" data-action="demo-remove">${t('Beispiel-Vorrat entfernen')}</button></section>` : ''}
     ${milestoneCard()}
     ${afterShoppingCard()}
     <section class="quick">
@@ -516,6 +517,8 @@ sheet.addEventListener('input', (e) => {
 
 function confirmScan() {
   const { rows, bought } = scan;
+  // Erster echter Kassenbon: Der Beispiel-Vorrat hat ausgedient.
+  if (store.hasDemo()) { store.removeDemo(); toast(t('Beispiel-Vorrat entfernt')); }
   const picked = rows.filter((r) => r.kind === 'essen' && r.checked && r.name.trim());
   const added = store.add(picked.map((r) => {
     const name = r.name.trim();
@@ -898,7 +901,9 @@ function renderBilanz() {
     <div class="card settings">
       <button class="set" data-action="export"><span>💾</span><span><b>${t('Sicherung speichern')}</b><small>${t('Alles bleibt auf diesem Gerät – hier als Datei sichern')}</small></span></button>
       <button class="set" data-action="import"><span>📂</span><span><b>${t('Sicherung laden')}</b><small>${t('z. B. auf einem neuen Handy')}</small></span></button>
-      <button class="set" data-action="demo"><span>🧪</span><span><b>${t('Beispiel-Vorrat laden')}</b><small>${t('Zum Ausprobieren')}</small></span></button>
+      ${store.hasDemo()
+    ? `<button class="set" data-action="demo-remove"><span>🧪</span><span><b>${t('Beispiel-Vorrat entfernen')}</b></span></button>`
+    : `<button class="set" data-action="demo"><span>🧪</span><span><b>${t('Beispiel-Vorrat laden')}</b><small>${t('Zum Ausprobieren')}</small></span></button>`}
       <button class="set danger" data-action="reset"><span>🗑</span><span><b>${t('Alles löschen')}</b></span></button>
     </div>
     <p class="muted small center">${t('Restlos · kostenlos und werbefrei · Haltbarkeiten und CO₂-Werte sind Schätzungen.')}</p>
@@ -965,7 +970,7 @@ function loadDemo() {
     ['Gouda', 1, 9], ['Hackfleisch', 1, 1], ['Spinat', 1, 0], ['Nudeln', 2, 300], ['Kartoffeln', 1, 20], ['Zwiebeln', 1, 25], ['Äpfel', 6, 14], ['Tomaten', 4, 2], ['Kidney Bohnen', 1, 400]];
   store.add(demo.map(([name, qty, d]) => ({ name, qty, expires: addDays(today, d), bought: addDays(today, -2) })), 'demo');
   const log = [['Salat', 'gemuese', 'wasted', 1.29, 3], ['Joghurt', 'milch', 'used', 0.89, 5], ['Brot', 'brot', 'used', 2.49, 6], ['Bananen', 'obst', 'shared', 1.49, 8], ['Milch', 'milch', 'used', 1.19, 9], ['Salat', 'gemuese', 'wasted', 1.29, 12], ['Käse', 'kaese', 'used', 2.29, 15]];
-  for (const [name, cat, action, price, ago] of log) store.state.log.push({ id: `d${ago}`, name, pid: matchProduct(name)?.id, cat, qty: 1, price, action, date: addDays(today, -ago) });
+  for (const [name, cat, action, price, ago] of log) store.state.log.push({ id: `d${ago}`, name, pid: matchProduct(name)?.id, cat, qty: 1, price, action, date: addDays(today, -ago), demo: true });
   store.setting('demo', true);
   toast(t('Beispiel-Vorrat geladen'));
 }
@@ -975,6 +980,7 @@ const actions = {
   add: (el) => addSheet(!!el.dataset.voice),
   scan: () => startScan(),
   demo: () => { closeSheet(); loadDemo(); location.hash = '#/vorrat'; },
+  'demo-remove': () => { store.removeDemo(); placeFilter = 'alle'; toast(t('Beispiel-Vorrat entfernt')); },
   close: closeSheet,
   undo: () => { toast.undo?.(); toast.undo = null; $('#toast').classList.remove('show'); },
   place: (el) => { placeFilter = el.dataset.place; render(); },
