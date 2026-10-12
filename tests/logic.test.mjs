@@ -152,3 +152,19 @@ test('Teilen-Text und Kalender-Erinnerungen', () => {
   assert.match(ics, /Joghurt läuft morgen ab/);
   assert.equal(calendarFile([{ ...items[0], expires: addDays(T, 60) }], T), null);
 });
+
+test('Beispiel-Vorrat lässt sich entfernen, echte Sachen bleiben', () => {
+  const mem = new Map();
+  const store = createStore({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) });
+  store.add([{ name: 'Joghurt' }, { name: 'Brot' }], 'demo');
+  store.add([{ name: 'Milch' }], 'bon');
+  store.state.log.push({ id: 'd5', name: 'Salat', action: 'wasted' }, { id: 'x1', name: 'Käse', action: 'used', demo: true });
+  store.setting('demo', true);
+  const real = store.add([{ name: 'Äpfel' }], 'hand')[0];
+  store.consume(real.id, 'used');
+  assert.equal(store.hasDemo(), true);
+  assert.equal(store.removeDemo(), 2);
+  assert.deepEqual(store.items().map((i) => i.name), ['Milch']);
+  assert.deepEqual(store.state.log.map((l) => l.name), ['Äpfel']);
+  assert.equal(store.hasDemo(), false);
+});

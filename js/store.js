@@ -88,6 +88,16 @@ export function createStore(storage = globalThis.localStorage) {
       state = { ...EMPTY(), ...data, settings: { ...EMPTY().settings, ...data.settings, aiKey: state.settings.aiKey } };
       save();
     },
+    // Beispiel-Vorrat wieder entfernen: nur die Beispiel-Sachen und die Beispiel-Bilanz, alles Echte bleibt.
+    removeDemo() {
+      const n = state.items.filter((i) => i.source === 'demo').length;
+      state.items = state.items.filter((i) => i.source !== 'demo');
+      state.log = state.log.filter((l) => !l.demo && !/^d\d+$/.test(l.id));
+      state.settings.demo = false;
+      save();
+      return n;
+    },
+    hasDemo: () => !!state.settings.demo || state.items.some((i) => i.source === 'demo'),
     reset() { state = EMPTY(); save(); },
   };
   return api;
