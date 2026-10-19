@@ -180,7 +180,6 @@ export default {
     "Erkannter Text": "Okunan metin",
     "Erst den Schlüssel eintragen": "Önce anahtarı gir",
     "Erst etwas auswählen": "Önce bir şey seç",
-    "Erst mal mit Beispiel-Vorrat ausprobieren": "Önce örnek kilerle dene",
     "Erstellt mit Restlos": "Restlos ile hazırlandı",
     "Ersten Kassenbon scannen": "İlk fişini tara",
     "Es fehlen {diff}.": "{diff} eksik.",

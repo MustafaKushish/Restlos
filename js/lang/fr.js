@@ -180,7 +180,6 @@ export default {
     "Erkannter Text": "Texte reconnu",
     "Erst den Schlüssel eintragen": "Saisis d'abord la clé",
     "Erst etwas auswählen": "Choisis d'abord quelque chose",
-    "Erst mal mit Beispiel-Vorrat ausprobieren": "Essayer d'abord avec un stock d'exemple",
     "Erstellt mit Restlos": "Créé avec Restlos",
     "Ersten Kassenbon scannen": "Scanner mon premier ticket",
     "Es fehlen {diff}.": "Il manque {diff}.",
