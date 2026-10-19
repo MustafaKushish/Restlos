@@ -19,6 +19,7 @@ Weitere Eingabewege: **Sprechen** („2 Liter Milch, sechs Eier und Tomaten“) 
 
 ## Ausprobieren
 
+- **Installieren in 2 Klicks:** Werbung und geteilte Links zeigen auf `https://mustafakushish.github.io/Restlos/install/`. Die Seite erkennt Android, iPhone und eingebaute Browser (Instagram, Facebook, WhatsApp) und zeigt jeweils nur den passenden Weg.
 - **Online:** Jeder Push auf `main` stellt die App über GitHub Pages unter `https://<name>.github.io/Restlos/` bereit (Workflow „Web-App (GitHub Pages)“). Auf dem Handy dann „Zum Home-Bildschirm“.
 - **Lokal:** `npm start`, dann http://localhost:8080 öffnen. In der App „Beispiel-Vorrat laden“ antippen.
 - **Tests:** `npm test` (Bon-Erkennung, Scanner, Haltbarkeit, Rezepte, Bilanz, Speicher, KI-Koch)
