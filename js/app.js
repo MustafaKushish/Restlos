@@ -183,7 +183,6 @@ function renderVorrat() {
       <div class="big">🧺</div>
       <p><b>${t('Kein Eintippen von Ablaufdaten.')}</b> ${t('Fotografiere einfach deinen Kassenbon – Restlos erkennt die Lebensmittel und schätzt, wie lange sie halten.')}</p>
       <button class="btn primary" data-action="scan">📷 ${t('Ersten Kassenbon scannen')}</button>
-      <button class="btn ghost" data-action="demo">${t('Erst mal mit Beispiel-Vorrat ausprobieren')}</button>
     </section>`}
   `;
 }

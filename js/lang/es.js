@@ -180,7 +180,6 @@ export default {
     "Erkannter Text": "Texto detectado",
     "Erst den Schlüssel eintragen": "Primero introduce la clave",
     "Erst etwas auswählen": "Primero elige algo",
-    "Erst mal mit Beispiel-Vorrat ausprobieren": "Probar primero con una despensa de ejemplo",
     "Erstellt mit Restlos": "Creado con Restlos",
     "Ersten Kassenbon scannen": "Escanear el primer ticket",
     "Es fehlen {diff}.": "Faltan {diff}.",

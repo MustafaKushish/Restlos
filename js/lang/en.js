@@ -180,7 +180,6 @@ export default {
     'Erkannter Text': 'Recognised text',
     'Erst den Schlüssel eintragen': 'Enter the key first',
     'Erst etwas auswählen': 'Select something first',
-    'Erst mal mit Beispiel-Vorrat ausprobieren': 'Try it first with a sample pantry',
     'Erstellt mit Restlos': 'Made with Restlos',
     'Ersten Kassenbon scannen': 'Scan your first receipt',
     'Es fehlen {diff}.': '{diff} missing.',

@@ -180,7 +180,6 @@ export default {
     "Erkannter Text": "النص المقروء",
     "Erst den Schlüssel eintragen": "أدخل المفتاح أولًا",
     "Erst etwas auswählen": "اختر شيئًا أولًا",
-    "Erst mal mit Beispiel-Vorrat ausprobieren": "جرّب أولًا بمؤونة تجريبية",
     "Erstellt mit Restlos": "صُنع بواسطة Restlos",
     "Ersten Kassenbon scannen": "امسح أول إيصال",
     "Es fehlen {diff}.": "ينقص {diff}.",
