@@ -1,11 +1,11 @@
 // Offline: Die App selbst liegt im Cache, die Daten sowieso auf dem Gerät.
-const CACHE = 'restlos-v15';
+const CACHE = 'restlos-v16';
 // Fahrplan der Erinnerungen, den die App hier ablegt (siehe syncReminders in app.js). Bleibt bei Updates erhalten.
 const REMIND_CACHE = 'restlos-erinnerung';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/store.js', 'js/products.js', 'js/pantry.js', 'js/receipt.js', 'js/recipes.js', 'js/share.js', 'js/ocr.js',
-  'js/chef.js', 'js/rescue.js', 'js/config.js', 'js/receiptai.js', 'js/camera.js', 'js/neighbors.js', 'js/neighborapi.js', 'js/nachbarn.js', 'js/health.js', 'js/vendor/anthropic-sdk.js',
+  'js/chef.js', 'js/rescue.js', 'js/config.js', 'js/receiptai.js', 'js/camera.js', 'js/neighbors.js', 'js/neighborapi.js', 'js/nachbarn.js', 'js/health.js', 'js/waterlevel.js', 'js/vendor/anthropic-sdk.js',
   'js/i18n.js', 'js/lang/en.js', 'js/lang/tr.js', 'js/lang/ar.js', 'js/lang/fr.js', 'js/lang/es.js',
   'widgets/einkauf.json', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];

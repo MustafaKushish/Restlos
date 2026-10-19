@@ -1,4 +1,5 @@
 // Restlos – Oberfläche. Ansichten: Vorrat, Rezepte (mit KI-Koch), Einkauf, Teilen, Bilanz.
+import { initWaterlevel } from './waterlevel.js';
 import { createStore } from './store.js';
 import { CATS, PLACES, PRODUCTS, byId, matchProduct, searchProducts, correctProduct } from './products.js';
 import { iso, addDays, daysLeft, status, stats, openItem, parseFreeText, makeItem } from './pantry.js';
@@ -1407,6 +1408,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 // fehlten dann noch die Erinnerungs-Helfer, und Vorrat oder Bilanz blieben beim Start leer.)
 render();
 window.restlosReady = true;
+initWaterlevel();
 try { sessionStorage.removeItem('restlos:retry'); } catch { /* privater Modus */ }
 store.subscribe(syncReminders);
 syncReminders();
