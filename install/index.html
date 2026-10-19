@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Restlos installieren</title>
+  <meta name="description" content="Kassenbon scannen, vor Verfall gewarnt werden, Reste verkochen. Kostenlos, ohne Anmeldung, in 2 Klicks installiert.">
+  <!-- Vorschau, wenn der Link in WhatsApp, Instagram oder Facebook geteilt wird -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Restlos">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:title" content="Restlos – nie wieder Essen wegwerfen">
+  <meta property="og:description" content="Kassenbon fotografieren, Restlos erinnert vor dem Ablaufen und schlägt Reste-Rezepte vor. Kostenlos, in 2 Klicks installiert.">
+  <meta property="og:url" content="https://mustafakushish.github.io/Restlos/install/">
+  <meta property="og:image" content="https://mustafakushish.github.io/Restlos/icons/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#f3f6f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#070b09" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Restlos">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <style>
+    :root {
+      --bg: #f3f6f2; --card: #fff; --text: #0f1a14; --muted: #5d6b63; --line: #e3e9e3;
+      --accent: #129a5c; --accent-grad: linear-gradient(135deg, #18b36b 0%, #0f9a7e 55%, #0d8f9a 100%);
+      --accent-soft: #e2f5ea; --glow: 0 10px 26px -8px rgb(18 154 92 / 60%);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #070b09; --card: #111815; --text: #ecf3ee; --muted: #93a39a; --line: #222d27; --accent: #3ddc97;
+        --accent-grad: linear-gradient(135deg, #34d399 0%, #2bc6a0 55%, #22c1c3 100%); --accent-soft: #12271d; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100dvh; background: var(--bg); color: var(--text);
+      font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    main { max-width: 440px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 20px 40px; text-align: center; }
+    .logo { width: 96px; height: 96px; border-radius: 24px; box-shadow: var(--glow); }
+    h1 { font-size: 30px; line-height: 1.15; margin: 18px 0 8px; letter-spacing: -0.02em; }
+    .lead { color: var(--muted); margin: 0 0 22px; }
+    .pros { list-style: none; padding: 0; margin: 26px 0 0; text-align: start; display: grid; gap: 10px; }
+    .pros li { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; }
+    .pros span { font-size: 22px; }
+    .btn { display: block; width: 100%; border: 0; border-radius: 18px; padding: 18px; font: inherit; font-weight: 700; font-size: 19px;
+      background: var(--accent-grad); color: #fff; box-shadow: var(--glow); cursor: pointer; text-decoration: none; }
+    .btn:active { transform: scale(0.98); }
+    .btn.ghost { background: var(--card); color: var(--text); border: 1px solid var(--line); box-shadow: none; font-size: 16px; margin-top: 12px; }
+    .steps { text-align: start; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 16px 16px 40px; margin: 0; }
+    .steps li { margin: 6px 0; }
+    .hint { color: var(--muted); font-size: 14px; margin-top: 18px; }
+    .arrow { position: fixed; font-size: 34px; animation: bob 1.2s ease-in-out infinite; pointer-events: none; }
+    .arrow.down { bottom: 8px; left: 50%; translate: -50% 0; }
+    .arrow.up { top: 4px; right: 14px; }
+    @keyframes bob { 50% { transform: translateY(8px); } }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="logo" src="../icons/icon.svg" alt="" width="96" height="96">
+    <h1>Nie wieder Essen wegwerfen</h1>
+    <p class="lead">Kassenbon fotografieren, Restlos erinnert vor dem Ablaufen und kocht mit dir die Reste.</p>
+    <!-- Android, Chrome, Edge: eigener Installieren-Dialog (Klick 1 hier, Klick 2 im Dialog) -->
+    <section id="native" hidden>
+      <button class="btn" id="install">📲 Jetzt installieren</button>
+    </section>
+
+    <!-- Instagram, Facebook usw. auf Android: dort lässt sich nichts installieren, also in Chrome weiter -->
+    <section id="android-inapp" hidden>
+      <a class="btn" id="open-chrome" href="#">📲 In Chrome öffnen und installieren</a>
+      <p class="hint">In Chrome erscheint dann der Knopf <b>Jetzt installieren</b>.</p>
+    </section>
+
+    <!-- Android ohne Dialog (z. B. Samsung Internet, Firefox) -->
+    <section id="android-manual" hidden>
+      <ol class="steps">
+        <li>Oben rechts auf <b>⋮</b> (oder unten auf <b>☰</b>) tippen.</li>
+        <li><b>„App installieren“</b> oder <b>„Zum Startbildschirm“</b> wählen.</li>
+      </ol>
+      <a class="btn ghost" id="open-chrome-2" href="#">Lieber in Chrome öffnen</a>
+    </section>
+
+    <!-- iPhone in Safari: 3 Fingertipps -->
+    <section id="ios" hidden>
+      <ol class="steps">
+        <li>Unten auf <b>Teilen</b> tippen <span aria-hidden="true">(□↑)</span>.</li>
+        <li><b>„Zum Home-Bildschirm“</b> wählen.</li>
+        <li>Oben rechts <b>Hinzufügen</b> tippen. Fertig!</li>
+      </ol>
+      <div class="arrow down" aria-hidden="true">⬇️</div>
+    </section>
+
+    <!-- iPhone in Instagram, Facebook oder WhatsApp: erst nach Safari -->
+    <section id="ios-inapp" hidden>
+      <ol class="steps">
+        <li>Oben rechts auf <b>···</b> tippen.</li>
+        <li><b>„In Safari öffnen“</b> (bzw. „Im Browser öffnen“) wählen.</li>
+        <li>Dort <b>Teilen → Zum Home-Bildschirm</b>.</li>
+      </ol>
+      <div class="arrow up" aria-hidden="true">⬆️</div>
+    </section>
+
+    <!-- Schon installiert oder gerade fertig -->
+    <section id="done" hidden>
+      <p class="lead"><b>Restlos ist installiert 🎉</b><br>Du findest es jetzt auf deinem Startbildschirm.</p>
+    </section>
+
+    <a class="btn ghost" id="open-app" href="../#/vorrat">Erst im Browser ausprobieren</a>
+    <ul class="pros">
+      <li><span>📸</span>Einkauf in Sekunden erfasst, ohne Tippen</li>
+      <li><span>⏰</span>Erinnerung, bevor etwas schlecht wird</li>
+      <li><span>🍳</span>Rezepte aus dem, was noch da ist</li>
+      <li><span>🔒</span>Kostenlos, ohne Anmeldung, Daten bleiben auf dem Handy</li>
+    </ul>
+    <p class="hint">Restlos ist eine Web-App: kein App Store, kein Konto, kein Download von mehreren MB. Funktioniert auch offline.</p>
+  </main>
+  <script>
+    const ua = navigator.userAgent;
+    const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const android = /android/i.test(ua);
+    // Eingebaute Browser der Apps, in denen Anzeigen und Links landen: dort gibt es keine Installation.
+    const inApp = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|WhatsApp|Messenger|Line\/|Snapchat|TikTok|musical_ly|; wv\)/i.test(ua);
+    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const $ = (id) => document.getElementById(id);
+    const show = (id) => { for (const s of ['native', 'android-inapp', 'android-manual', 'ios', 'ios-inapp', 'done']) $(s).hidden = s !== id; };
+
+    // Chrome per Android-Intent öffnen; die Kampagnen-Parameter (utm_…) bleiben dabei erhalten.
+    const chromeUrl = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
+    $('open-chrome').href = $('open-chrome-2').href = chromeUrl;
+
+    let prompt = null;
+    addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); prompt = e; if (!standalone) show('native'); });
+    addEventListener('appinstalled', () => { prompt = null; show('done'); $('open-app').textContent = 'Restlos öffnen'; });
+    $('install').addEventListener('click', async () => {
+      if (!prompt) return;
+      prompt.prompt();
+      const choice = await prompt.userChoice.catch(() => null);
+      prompt = null;
+      if (choice?.outcome === 'accepted') show('done');
+    });
+
+    if (standalone) { show('done'); $('open-app').textContent = 'Restlos öffnen'; }
+    else if (ios) show(inApp ? 'ios-inapp' : 'ios');
+    else if (android && inApp) show('android-inapp');
+    // Kein eigener Dialog nach kurzer Zeit: auf Android die Anleitung über das Browser-Menü zeigen,
+    // am Computer führt der Knopf in die App, dort steht die Anleitung für den jeweiligen Browser.
+    else setTimeout(() => {
+      if (prompt) return;
+      if (android) show('android-manual');
+      else $('open-app').textContent = 'Restlos im Browser öffnen';
+    }, 1500);
+
+    // Der Service Worker der App macht die Seite installierbar und die App sofort offline startklar.
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js', { scope: '../', updateViaCache: 'none' }).catch(() => {});
+  </script>
+</body>
+</html>
