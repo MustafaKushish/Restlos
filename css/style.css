@@ -632,3 +632,12 @@ dialog#cam::backdrop { background: #000; }
 .guide h3 { font-size: 16px; margin: 18px 0 6px; }
 .guide ol { padding-inline-start: 22px; margin: 0 0 8px; }
 .guide li { margin-bottom: 6px; }
+
+/* Wasserwaage (js/waterlevel.js): Icons drehen gegen die Neigung des Handys und bleiben waagerecht. */
+:root { --tilt: 0deg; }
+.emoji, .set > span:first-child, .quick-btn > span, .empty .big, .small-empty .big, .tabs svg, .brand img, .lang-top > span {
+  rotate: calc(var(--tilt) * -1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .emoji, .set > span:first-child, .quick-btn > span, .empty .big, .small-empty .big, .tabs svg, .brand img, .lang-top > span { rotate: none; }
+}
